@@ -81,12 +81,17 @@ const parseCsvFile = (text) => {
 
 const normaliseHeaderLabel = (header) => header.toLowerCase().replace(/[^a-z0-9]+/gu, "");
 
+const matchHeaderToken = (headers, token, predicate) =>
+  headers.findIndex((header) => predicate(header, token));
+
 const findColumnIndex = (headers, tokens, fallback = null) => {
   for (const token of tokens) {
-    const index = headers.findIndex((header) => header.includes(token));
-    if (index !== -1) {
-      return index;
-    }
+    let index = matchHeaderToken(headers, token, (header, tk) => header === tk);
+    if (index !== -1) return index;
+    index = matchHeaderToken(headers, token, (header, tk) => header.startsWith(tk));
+    if (index !== -1) return index;
+    index = matchHeaderToken(headers, token, (header, tk) => header.includes(tk));
+    if (index !== -1) return index;
   }
   return fallback;
 };
@@ -97,6 +102,145 @@ const toNumber = (value) => {
   if (!cleaned) return null;
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const POSTCODE_TOKENS = [
+  "postcode",
+  "pcds",
+  "pcd7",
+  "pcd8",
+  "pc",
+  "postcodesector",
+  "postcodearea",
+];
+
+const ALTITUDE_TOKENS = [
+  "altitude",
+  "altitudem",
+  "altitudemaod",
+  "altitudeaod",
+  "altitude_m",
+  "altitudemaodm",
+  "altitudepaod",
+  "altitudevalue",
+  "altmaod",
+  "altm",
+  "maod",
+  "aod",
+  "elevation",
+  "elevationm",
+  "groundlevel",
+  "height",
+  "heightm",
+];
+
+const WIND_SPEED_TOKENS = [
+  "windspeedms",
+  "windspeed",
+  "windspeedmps",
+  "windspeedm_s",
+  "basicwindspeed",
+  "designwindspeed",
+  "windvb",
+  "vbmap",
+  "vbms",
+  "vbref",
+  "vb",
+  "vref",
+  "speed",
+];
+
+const WIND_PRESSURE_TOKENS = [
+  "windpressure",
+  "designpressure",
+  "pressure",
+  "pressurekpa",
+  "q10",
+  "q1",
+  "q",
+  "kpa",
+];
+
+const countValidSamples = (rows, index, isValueValid) => {
+  let hits = 0;
+  let considered = 0;
+  for (let i = 0; i < rows.length && considered < 200; i += 1) {
+    const value = rows[i][index];
+    if (value === undefined || value === null) continue;
+    considered += 1;
+    if (isValueValid(value)) {
+      hits += 1;
+    }
+  }
+  return { hits, considered };
+};
+
+const looksLikeAltitude = (value) => {
+  const str = value.toString().trim();
+  const numeric = toNumber(str);
+  if (numeric === null) return false;
+  if (numeric < -200 || numeric > 2500) return false;
+  const units = str.replace(/[-+0-9.,\s]/g, "").toLowerCase();
+  if (!units) return true;
+  const allowedUnits = ["m", "maod", "aod", "maodm", "maodft", "maodmetres", "maodmeters"];
+  return allowedUnits.some((unit) => units.includes(unit));
+};
+
+const looksLikeWindSpeed = (value) => {
+  const str = value.toString().trim();
+  const numeric = toNumber(str);
+  if (numeric === null) return false;
+  if (numeric <= 0 || numeric > 120) return false;
+  const units = str.replace(/[-+0-9.,\s]/g, "").toLowerCase();
+  if (!units) return true;
+  const allowedUnits = ["mps", "ms", "m\u2212s", "mph", "kmh", "kph", "kn", "kts", "knots"];
+  return allowedUnits.some((unit) => units.includes(unit));
+};
+
+const looksLikePressure = (value) => {
+  const str = value.toString().trim();
+  const numeric = toNumber(str);
+  if (numeric === null) return false;
+  if (numeric <= 0 || numeric > 10) return false;
+  const units = str.replace(/[-+0-9.,\s]/g, "").toLowerCase();
+  if (!units) return true;
+  const allowedUnits = ["kpa", "pa", "nmm2", "nm2", "psf", "psi"];
+  return allowedUnits.some((unit) => units.includes(unit));
+};
+
+const looksLikePostcode = (value) => {
+  const normalised = normalisePostcode(value);
+  if (!normalised) return false;
+  return /[A-Z]/.test(normalised) && /\d/.test(normalised);
+};
+
+const resolveColumnIndex = (normalizedHeaders, tokens, fallback, rows, validator) => {
+  const indexFromHeader = findColumnIndex(normalizedHeaders, tokens, null);
+  if (indexFromHeader !== null && indexFromHeader !== undefined) {
+    if (!validator) return indexFromHeader;
+    const { hits, considered } = countValidSamples(rows, indexFromHeader, validator);
+    if (hits > 0 && hits >= Math.max(1, Math.floor(considered * 0.2))) {
+      return indexFromHeader;
+    }
+  }
+
+  if (validator) {
+    const scores = normalizedHeaders.map((_, idx) => {
+      const { hits, considered } = countValidSamples(rows, idx, validator);
+      return { index: idx, hits, considered };
+    });
+    const best = scores
+      .filter(({ hits }) => hits > 0)
+      .sort((a, b) => {
+        if (b.hits !== a.hits) return b.hits - a.hits;
+        return a.index - b.index;
+      })[0];
+    if (best) {
+      return best.index;
+    }
+  }
+
+  return fallback;
 };
 
 const convertSpeed = (value, headerNormalized, headerRaw) => {
@@ -127,8 +271,23 @@ const buildAltitudeIndex = (text) => {
   const { headers, rows } = parseCsvFile(text.replace(/^\uFEFF/u, ""));
   if (headers.length === 0) return new Map();
   const normalizedHeaders = headers.map(normaliseHeaderLabel);
-  const postcodeIndex = findColumnIndex(normalizedHeaders, ["postcode", "postcodesector", "pc"], 0);
-  const altitudeIndex = findColumnIndex(normalizedHeaders, ["altitude", "altitudem", "elevation", "height"], 1);
+  const postcodeIndex = resolveColumnIndex(
+    normalizedHeaders,
+    POSTCODE_TOKENS,
+    0,
+    rows,
+    looksLikePostcode,
+  );
+  const altitudeIndex = resolveColumnIndex(
+    normalizedHeaders,
+    ALTITUDE_TOKENS,
+    null,
+    rows,
+    looksLikeAltitude,
+  );
+  if (altitudeIndex === null || altitudeIndex === undefined) {
+    return new Map();
+  }
   const index = new Map();
   rows.forEach((row) => {
     const postcodeRaw = row[postcodeIndex] ?? "";
@@ -152,9 +311,27 @@ const buildWindIndex = (text) => {
   const { headers, rows } = parseCsvFile(text.replace(/^\uFEFF/u, ""));
   if (headers.length === 0) return new Map();
   const normalizedHeaders = headers.map(normaliseHeaderLabel);
-  const postcodeIndex = findColumnIndex(normalizedHeaders, ["postcode", "postcodesector", "pc"], 0);
-  const speedIndex = findColumnIndex(normalizedHeaders, ["windspeedms", "windspeed", "basicwindspeed", "designwindspeed", "vb", "vref", "speed"], null);
-  const pressureIndex = findColumnIndex(normalizedHeaders, ["windpressure", "pressure", "designpressure", "q"], null);
+  const postcodeIndex = resolveColumnIndex(
+    normalizedHeaders,
+    POSTCODE_TOKENS,
+    0,
+    rows,
+    looksLikePostcode,
+  );
+  const speedIndex = resolveColumnIndex(
+    normalizedHeaders,
+    WIND_SPEED_TOKENS,
+    null,
+    rows,
+    looksLikeWindSpeed,
+  );
+  const pressureIndex = resolveColumnIndex(
+    normalizedHeaders,
+    WIND_PRESSURE_TOKENS,
+    null,
+    rows,
+    looksLikePressure,
+  );
   const index = new Map();
   rows.forEach((row) => {
     const postcodeRaw = row[postcodeIndex] ?? "";
