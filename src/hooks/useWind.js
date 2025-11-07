@@ -22,7 +22,7 @@ const computeFallbackWind = (postcode) => {
   };
 };
 
-const parseCsvRow = (line) => {
+const splitCsvLine = (line, delimiter = ",") => {
   const row = [];
   let current = "";
   let inQuotes = false;
@@ -35,7 +35,7 @@ const parseCsvRow = (line) => {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === "," && !inQuotes) {
+    } else if (char === delimiter && !inQuotes) {
       row.push(current.trim());
       current = "";
     } else {
@@ -43,7 +43,25 @@ const parseCsvRow = (line) => {
     }
   }
   row.push(current.trim());
-  return row.map((value) => value.replace(/^"(.*)"$/u, "$1").trim());
+  return row;
+};
+
+const parseCsvRow = (line, delimiter = ",") =>
+  splitCsvLine(line, delimiter).map((value) =>
+    value.replace(/^"(.*)"$/u, "$1").trim(),
+  );
+
+const detectDelimiter = (line) => {
+  const candidates = [",", ";", "\t", "|"];
+  const scores = candidates.map((delimiter) => ({
+    delimiter,
+    columns: splitCsvLine(line, delimiter).length,
+  }));
+  const best = scores.reduce(
+    (prev, next) => (next.columns > prev.columns ? next : prev),
+    { delimiter: ",", columns: 0 },
+  );
+  return best.columns > 1 ? best.delimiter : ",";
 };
 
 const parseCsvFile = (text) => {
@@ -54,8 +72,10 @@ const parseCsvFile = (text) => {
   if (lines.length === 0) {
     return { headers: [], rows: [] };
   }
-  const headers = parseCsvRow(lines.shift());
-  const rows = lines.map((line) => parseCsvRow(line));
+  const firstLine = lines.shift();
+  const delimiter = detectDelimiter(firstLine);
+  const headers = parseCsvRow(firstLine, delimiter);
+  const rows = lines.map((line) => parseCsvRow(line, delimiter));
   return { headers, rows };
 };
 
