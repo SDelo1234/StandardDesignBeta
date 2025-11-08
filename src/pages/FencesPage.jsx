@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import FenceInputs from "../components/FenceInputs";
 import FenceOptions from "../components/FenceOptions";
 import Map from "../components/Map";
@@ -18,6 +18,7 @@ const initialForm = {
   height: "2.0 m",
   distanceToSea: "",
   altitude: "",
+  altitudeOverride: "",
 };
 
 const postcodeRegex = /^\s*[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}\s*$/i;
@@ -27,7 +28,42 @@ const FencesPage = () => {
   const [errors, setErrors] = useState({});
   const [selected, setSelected] = useState([]);
 
-  const { wind } = useWind(form.postcode);
+  const {
+    wind,
+    altitude: autoAltitude,
+    status: lookupStatus,
+    sources: datasetSources,
+  } = useWind(form.postcode);
+
+  const overrideAltitude = useMemo(() => {
+    const raw = (form.altitudeOverride || "").trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [form.altitudeOverride]);
+
+  const effectiveAltitude = useMemo(() => {
+    if (overrideAltitude !== null) {
+      return overrideAltitude;
+    }
+    if (autoAltitude === null || autoAltitude === undefined) {
+      return null;
+    }
+    return autoAltitude;
+  }, [overrideAltitude, autoAltitude]);
+
+  useEffect(() => {
+    setForm((prev) => {
+      const nextAltitude =
+        effectiveAltitude === null || effectiveAltitude === undefined
+          ? ""
+          : String(effectiveAltitude);
+      if (prev.altitude === nextAltitude) {
+        return prev;
+      }
+      return { ...prev, altitude: nextAltitude };
+    });
+  }, [effectiveAltitude]);
 
   const options = useMemo(
     () => [
@@ -83,7 +119,17 @@ const FencesPage = () => {
       </header>
 
       <Map postcode={form.postcode} onPostcodeChange={(value) => updateField("postcode", value)} />
-      <FenceInputs form={form} errors={errors} onChange={updateField} />
+      <FenceInputs
+        form={form}
+        errors={errors}
+        onChange={updateField}
+        autoAltitude={autoAltitude}
+        altitudeStatus={lookupStatus}
+        altitudeOverride={form.altitudeOverride}
+        onAltitudeOverrideChange={(value) => updateField("altitudeOverride", value)}
+        effectiveAltitude={effectiveAltitude}
+        altitudeMatch={datasetSources.altitude}
+      />
 
       {wind && (
         <section className="mt-8 space-y-6">
