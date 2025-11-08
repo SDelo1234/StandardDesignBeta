@@ -1,31 +1,98 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { normalisePostcode } from "../utils/postcode";
+import {
+  computeFallbackWind,
+  ensureDatasets,
+  getDatasetCacheSync,
+  lookupDatasets,
+} from "../utils/datasets";
 
-const computeWindInternal = (postcode) => {
-  const cleaned = (postcode || "").toUpperCase().split(" ").join("");
-  const base = 22;
-  const codeSum = cleaned.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-  const speed = Math.round(base + (codeSum % 11));
-  const pressureRaw = Number((0.0005 * speed * speed).toFixed(3));
-  const pressure_kpa = Math.min(pressureRaw, 0.149);
-  const speed_ms = Math.round(Math.sqrt(pressure_kpa / 0.0005));
-  return { speed_ms, pressure_kpa };
-};
+const makeBaseState = (status = "idle") => ({
+  wind: null,
+  altitude: null,
+  status,
+  error: null,
+  sources: { wind: null, altitude: null },
+});
 
 const useWind = (postcode) => {
-  const [wind, setWind] = useState(null);
+  const [state, setState] = useState(() =>
+    makeBaseState(getDatasetCacheSync() ? "ready" : "idle"),
+  );
 
   useEffect(() => {
-    const trimmed = (postcode || "").trim();
-    if (trimmed) {
-      setWind(computeWindInternal(trimmed));
-    } else {
-      setWind(null);
+    const cache = getDatasetCacheSync();
+    const trimmedInput = (postcode || "").trim();
+
+    if (!trimmedInput) {
+      setState(makeBaseState(cache ? "ready" : "idle"));
+      return;
     }
+
+    const normalized = normalisePostcode(trimmedInput);
+    if (!normalized) {
+      setState(makeBaseState(cache ? "ready" : "idle"));
+      return;
+    }
+
+    const fallbackWind = computeFallbackWind(normalized);
+    if (!fallbackWind) {
+      setState(makeBaseState(cache ? "ready" : "idle"));
+      return;
+    }
+
+    const applyDatasets = (datasets) => {
+      const result = lookupDatasets(datasets, normalized);
+      const nextWind = result.wind ?? fallbackWind;
+      setState({
+        wind: nextWind,
+        altitude: result.altitude ?? null,
+        status: "ready",
+        error: null,
+        sources: {
+          wind: nextWind.source === "dataset" ? nextWind.match : null,
+          altitude: result.altitudeMatch ?? null,
+        },
+      });
+    };
+
+    if (cache) {
+      applyDatasets(cache);
+      return;
+    }
+
+    let cancelled = false;
+
+    setState({
+      wind: fallbackWind,
+      altitude: null,
+      status: "loading",
+      error: null,
+      sources: { wind: null, altitude: null },
+    });
+
+    ensureDatasets()
+      .then((datasets) => {
+        if (cancelled) return;
+        applyDatasets(datasets);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setState({
+          wind: fallbackWind,
+          altitude: null,
+          status: "error",
+          error,
+          sources: { wind: null, altitude: null },
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [postcode]);
 
-  const computeWind = useMemo(() => computeWindInternal, []);
-
-  return { wind, computeWind };
+  return state;
 };
 
 export default useWind;

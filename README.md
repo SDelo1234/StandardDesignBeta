@@ -69,6 +69,17 @@ You can re-run the script anytime you need to push new commits. It will print ea
 
 > **Tip:** run `git status -sb` anytime to check whether there are uncommitted changes before pushing.
 
+## Resolving merge conflicts in the GitHub web editor
+
+If GitHub reports conflicts after you push, you can often resolve them directly in the browser:
+
+1. Open your pull request and click **Resolve conflicts**.
+2. For each file, review the highlighted sections. The block between `<<<<<<<` and `=======` shows your branch; the block between `=======` and `>>>>>>>` shows the base branch.
+3. Edit the file so that only the desired lines remain and all conflict markers are removed.
+4. Click **Mark as resolved** and then **Commit merge** to save the fixes.
+
+For large CSV updates or when you need to run local tests, prefer resolving conflicts on your machine so you can validate the output before committing.
+
 ## Deployment Notes
 
 The project targets Node 18 or 20. Configure your hosting (e.g., Vercel) with:
