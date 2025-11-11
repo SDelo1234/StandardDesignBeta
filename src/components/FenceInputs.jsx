@@ -1,4 +1,5 @@
 import React from "react";
+import TerrainCategorySelector from "./TerrainCategorySelector";
 import { formatPostcode } from "../utils/postcode";
 
 const formatAltitudeValue = (value) => {
@@ -18,6 +19,7 @@ const FenceInputs = ({
   onAltitudeOverrideChange,
   effectiveAltitude,
   altitudeMatch,
+  onTerrainChange,
 }) => {
   const renderAltitudeStatus = () => {
     if (altitudeStatus === "loading") {
@@ -86,8 +88,8 @@ const FenceInputs = ({
 
       <section className="lg:col-span-3 rounded-2xl bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-lg font-medium">Site conditions</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="lg:col-span-1">
             <label className="mb-1 block text-sm font-medium">Ground conditions</label>
             <select
               className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring"
@@ -100,7 +102,14 @@ const FenceInputs = ({
               <option>Unknown – assume worst case</option>
             </select>
           </div>
-          <div>
+          <div className="md:col-span-2 lg:col-span-4">
+            <TerrainCategorySelector
+              value={form.terrainCategory}
+              onChange={onTerrainChange}
+              error={errors.terrainCategory}
+            />
+          </div>
+          <div className="lg:col-span-1">
             <label className="mb-1 block text-sm font-medium">Distance to sea</label>
             <input
               className="w-full rounded-xl border p-2.5 focus:outline-none focus:ring"
@@ -109,7 +118,7 @@ const FenceInputs = ({
               onChange={(e) => onChange("distanceToSea", e.target.value)}
             />
           </div>
-          <div>
+          <div className="md:col-span-2 lg:col-span-2">
             <label className="mb-1 block text-sm font-medium">Altitude (dataset)</label>
             <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
               {renderAltitudeStatus()}
@@ -135,7 +144,7 @@ const FenceInputs = ({
                 : "Leave blank to use the dataset value or enter a manual altitude."}
             </p>
           </div>
-          <div>
+          <div className="lg:col-span-1">
             <label className="mb-1 block text-sm font-medium">Fence height</label>
             <select
               className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring"

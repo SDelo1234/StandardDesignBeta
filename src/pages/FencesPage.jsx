@@ -4,11 +4,20 @@ import FenceOptions from "../components/FenceOptions";
 import Map from "../components/Map";
 import WindResults from "../components/WindResults";
 import useWind from "../hooks/useWind";
+import { DEFAULT_TERRAIN_CATEGORY, Z0_BY_TERRAIN } from "../utils/terrain";
 
 const IMG1 = "https://i.ibb.co/LzMWRbqj/IMG1-fence-1.jpg";
 const IMG2 = "https://i.ibb.co/Kc61kkHd/IMG2-fence-2.jpg";
 const IMG3 = "https://i.ibb.co/VYkkBwWW/IMG3-fence-3.jpg";
 const IMG4 = "https://i.ibb.co/pBCs5YHd/IMG4-fence-4.jpg";
+
+const parseOptionalNumber = (value) => {
+  if (value === null || value === undefined) return undefined;
+  const text = value.toString().trim();
+  if (!text) return undefined;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
 const initialForm = {
   projectName: "",
@@ -19,6 +28,8 @@ const initialForm = {
   distanceToSea: "",
   altitude: "",
   altitudeOverride: "",
+  terrainCategory: DEFAULT_TERRAIN_CATEGORY,
+  terrainRoughness_z0_m: Z0_BY_TERRAIN[DEFAULT_TERRAIN_CATEGORY],
 };
 
 const postcodeRegex = /^\s*[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}\s*$/i;
@@ -86,6 +97,9 @@ const FencesPage = () => {
     if (key === "postcode") {
       return postcodeRegex.test(value.trim()) ? "" : "Enter a valid UK postcode (e.g., SW4 6QD).";
     }
+    if (key === "terrainCategory") {
+      return value ? "" : "Select a terrain category.";
+    }
     return "";
   }, []);
 
@@ -104,10 +118,67 @@ const FencesPage = () => {
     });
   }, [validateField]);
 
+  const handleTerrainCategoryChange = useCallback((categoryId) => {
+    const fallbackId = DEFAULT_TERRAIN_CATEGORY;
+    const nextId =
+      categoryId && Object.prototype.hasOwnProperty.call(Z0_BY_TERRAIN, categoryId)
+        ? categoryId
+        : fallbackId;
+    const roughness = Z0_BY_TERRAIN[nextId];
+    setForm((prev) => ({
+      ...prev,
+      terrainCategory: nextId,
+      terrainRoughness_z0_m: roughness,
+    }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (nextId) {
+        delete next.terrainCategory;
+      } else {
+        next.terrainCategory = "Select a terrain category.";
+      }
+      return next;
+    });
+  }, []);
+
   const handleToggle = useCallback((id, disabled) => {
     if (disabled) return;
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   }, []);
+
+  const windInputs = useMemo(() => {
+    const terrainCategory = form.terrainCategory || DEFAULT_TERRAIN_CATEGORY;
+    const terrainRoughness =
+      form.terrainRoughness_z0_m ?? Z0_BY_TERRAIN[terrainCategory];
+    return {
+      postcode: form.postcode.trim(),
+      distanceToSea_km: parseOptionalNumber(form.distanceToSea),
+      altitude_mAOD:
+        effectiveAltitude === null || effectiveAltitude === undefined
+          ? undefined
+          : Number(effectiveAltitude),
+      fenceHeight_m: requiredHeight,
+      terrainCategory,
+      terrainRoughness_z0_m: terrainRoughness,
+    };
+  }, [
+    effectiveAltitude,
+    form.distanceToSea,
+    form.postcode,
+    form.terrainCategory,
+    form.terrainRoughness_z0_m,
+    requiredHeight,
+  ]);
+
+  const windWithTerrain = useMemo(() => {
+    if (!wind) return null;
+    return {
+      ...wind,
+      terrainCategory: windInputs.terrainCategory,
+      terrainRoughness_z0_m: windInputs.terrainRoughness_z0_m,
+      inputs: windInputs,
+    };
+  }, [wind, windInputs]);
 
   return (
     <div className="mx-auto max-w-5xl p-6">
@@ -129,15 +200,16 @@ const FencesPage = () => {
         onAltitudeOverrideChange={(value) => updateField("altitudeOverride", value)}
         effectiveAltitude={effectiveAltitude}
         altitudeMatch={datasetSources.altitude}
+        onTerrainChange={handleTerrainCategoryChange}
       />
 
-      {wind && (
+      {windWithTerrain && (
         <section className="mt-8 space-y-6">
-          <WindResults wind={wind} />
+          <WindResults wind={windWithTerrain} />
           <FenceOptions
             options={options}
             selected={selected}
-            wind={wind}
+            wind={windWithTerrain}
             requiredHeight={requiredHeight}
             onToggle={handleToggle}
           />
