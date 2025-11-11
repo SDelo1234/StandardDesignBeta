@@ -1,4 +1,4 @@
-import { normalisePostcode } from "./postcode.js";
+import { getPostcodeSector, normalisePostcode } from "./postcode.js";
 
 export const ALTITUDE_URL = "/data/Postcode_elevation.csv";
 export const WIND_URL = "/data/vbpostcode.csv";
@@ -15,6 +15,7 @@ export const computeFallbackWind = (postcode) => {
   return {
     speed_ms,
     pressure_kpa,
+    vb_map: speed_ms,
     source: "fallback",
     match: cleaned,
     matchKey: cleaned,
@@ -365,7 +366,7 @@ export const buildWindIndex = (text) => {
   const index = new Map();
   rows.forEach((row) => {
     const postcodeRaw = row[postcodeIndex] ?? "";
-    const postcode = normalisePostcode(postcodeRaw);
+    const postcode = getPostcodeSector(postcodeRaw);
     if (!postcode) return;
     let speedMs = null;
     if (speedIndex !== null && speedIndex !== undefined) {
@@ -388,6 +389,7 @@ export const buildWindIndex = (text) => {
       index.set(postcode, {
         speed_ms: speedMs,
         pressure_kpa: pressureKpa,
+        vb_map: speedMs,
         original: postcodeRaw.trim() || postcode,
         key: postcode,
       });
@@ -411,7 +413,10 @@ const findBestRecord = (map, postcode) => {
 
 export const lookupDatasets = (datasets, postcode) => {
   const altitudeRecord = findBestRecord(datasets.altitudeIndex, postcode);
-  const windRecord = findBestRecord(datasets.windIndex, postcode);
+  const windPostcode = getPostcodeSector(postcode);
+  const windRecord = windPostcode
+    ? findBestRecord(datasets.windIndex, windPostcode)
+    : null;
   return {
     altitude: altitudeRecord ? altitudeRecord.altitude : null,
     altitudeMatch: altitudeRecord ? altitudeRecord.original || altitudeRecord.match : null,
@@ -419,6 +424,7 @@ export const lookupDatasets = (datasets, postcode) => {
       ? {
           speed_ms: windRecord.speed_ms,
           pressure_kpa: windRecord.pressure_kpa,
+          vb_map: windRecord.vb_map ?? null,
           source: "dataset",
           match: windRecord.original || windRecord.match,
           matchKey: windRecord.match,
