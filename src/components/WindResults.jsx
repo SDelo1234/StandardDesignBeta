@@ -23,7 +23,7 @@ const WindResults = ({ wind }) => {
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <h2 className="mb-2 text-lg font-medium">Wind results</h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-gray-200 p-4">
           <div className="text-xs text-gray-500">Wind speed</div>
           <div className="text-2xl font-semibold">{formatWindSpeed(wind.speed_ms)}</div>
@@ -31,6 +31,10 @@ const WindResults = ({ wind }) => {
         <div className="rounded-xl border border-gray-200 p-4">
           <div className="text-xs text-gray-500">Wind pressure</div>
           <div className="text-2xl font-semibold">{formatPressure(wind.pressure_kpa)}</div>
+        </div>
+        <div className="rounded-xl border border-gray-200 p-4">
+          <div className="text-xs text-gray-500">Vb,map</div>
+          <div className="text-2xl font-semibold">{formatWindSpeed(wind.vb_map)}</div>
         </div>
       </div>
       <p className="mt-4 text-xs text-gray-500">{sourceMessage}</p>

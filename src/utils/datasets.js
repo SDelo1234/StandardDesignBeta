@@ -15,6 +15,7 @@ export const computeFallbackWind = (postcode) => {
   return {
     speed_ms,
     pressure_kpa,
+    vb_map: speed_ms,
     source: "fallback",
     match: cleaned,
     matchKey: cleaned,
@@ -388,6 +389,7 @@ export const buildWindIndex = (text) => {
       index.set(postcode, {
         speed_ms: speedMs,
         pressure_kpa: pressureKpa,
+        vb_map: speedMs,
         original: postcodeRaw.trim() || postcode,
         key: postcode,
       });
@@ -419,6 +421,7 @@ export const lookupDatasets = (datasets, postcode) => {
       ? {
           speed_ms: windRecord.speed_ms,
           pressure_kpa: windRecord.pressure_kpa,
+          vb_map: windRecord.vb_map ?? null,
           source: "dataset",
           match: windRecord.original || windRecord.match,
           matchKey: windRecord.match,
