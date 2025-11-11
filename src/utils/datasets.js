@@ -1,4 +1,4 @@
-import { normalisePostcode } from "./postcode.js";
+import { extractPostcodeOutward, normalisePostcode } from "./postcode.js";
 
 export const ALTITUDE_URL = "/data/Postcode_elevation.csv";
 export const WIND_URL = "/data/vbpostcode.csv";
@@ -366,7 +366,7 @@ export const buildWindIndex = (text) => {
   const index = new Map();
   rows.forEach((row) => {
     const postcodeRaw = row[postcodeIndex] ?? "";
-    const postcode = normalisePostcode(postcodeRaw);
+    const postcode = extractPostcodeOutward(postcodeRaw);
     if (!postcode) return;
     let speedMs = null;
     if (speedIndex !== null && speedIndex !== undefined) {

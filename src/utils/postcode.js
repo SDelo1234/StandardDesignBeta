@@ -4,6 +4,13 @@ export const normalisePostcode = (value) =>
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
 
+export const extractPostcodeOutward = (value) => {
+  const raw = (value || "").toString().trim();
+  if (!raw) return "";
+  const [outward] = raw.split(/\s+/);
+  return normalisePostcode(outward);
+};
+
 export const formatPostcode = (value) => {
   const normalised = normalisePostcode(value);
   if (!normalised) return "";
