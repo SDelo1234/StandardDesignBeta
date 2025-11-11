@@ -412,8 +412,14 @@ const findBestRecord = (map, postcode) => {
 };
 
 export const lookupDatasets = (datasets, postcode) => {
-  const altitudeRecord = findBestRecord(datasets.altitudeIndex, postcode);
-  const windRecord = findBestRecord(datasets.windIndex, postcode);
+  const normalized = normalisePostcode(postcode);
+  const altitudeKey = normalized || "";
+  const windKey = extractPostcodeOutward(normalized);
+
+  const altitudeRecord = altitudeKey
+    ? findBestRecord(datasets.altitudeIndex, altitudeKey)
+    : null;
+  const windRecord = windKey ? findBestRecord(datasets.windIndex, windKey) : null;
   return {
     altitude: altitudeRecord ? altitudeRecord.altitude : null,
     altitudeMatch: altitudeRecord ? altitudeRecord.original || altitudeRecord.match : null,
