@@ -1,27 +1,12 @@
 import React from "react";
 import { formatPostcode } from "../utils/postcode";
 import { getTerrainOption } from "../utils/terrain";
-
-const formatWindSpeed = (value) => {
-  if (!Number.isFinite(value)) return "–";
-  const rounded = Math.round(value * 10) / 10;
-  return Number.isInteger(rounded) ? `${rounded.toFixed(0)} m/s` : `${rounded.toFixed(1)} m/s`;
-};
-
-const formatPressure = (value) => {
-  if (!Number.isFinite(value)) return "–";
-  return `${value.toFixed(3)} kPa`;
-};
-
-const formatRoughness = (value) => {
-  if (!Number.isFinite(value)) return "–";
-  return value < 0.01 ? `${value.toFixed(3)} m` : `${value.toFixed(2)} m`;
-};
-
-const formatFactor = (value) => {
-  if (!Number.isFinite(value)) return "–";
-  return value.toFixed(2);
-};
+import {
+  formatFactor,
+  formatPressure,
+  formatRoughness,
+  formatWindSpeed,
+} from "../utils/formatters";
 
 const WindResults = ({ wind }) => {
   if (!wind) return null;

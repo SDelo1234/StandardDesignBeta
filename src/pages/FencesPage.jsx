@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FenceInputs from "../components/FenceInputs";
 import FenceOptions from "../components/FenceOptions";
 import Map from "../components/Map";
@@ -11,6 +11,7 @@ import {
   computeBasicWind,
   C_DIR,
 } from "../utils/wind";
+import { generateDesignBriefPdf } from "../utils/designBrief";
 
 const IMG1 = "https://i.ibb.co/LzMWRbqj/IMG1-fence-1.jpg";
 const IMG2 = "https://i.ibb.co/Kc61kkHd/IMG2-fence-2.jpg";
@@ -45,6 +46,9 @@ const FencesPage = () => {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [selected, setSelected] = useState([]);
+  const [exportingBrief, setExportingBrief] = useState(false);
+
+  const mapRef = useRef(null);
 
   const {
     wind,
@@ -158,6 +162,30 @@ const FencesPage = () => {
     if (disabled) return;
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   }, []);
+
+  const handleExportDesignBrief = useCallback(
+    async (payload) => {
+      if (!payload) return;
+      setExportingBrief(true);
+      try {
+        let mapImage = null;
+        if (mapRef.current && typeof mapRef.current.captureSnapshot === "function") {
+          try {
+            mapImage = await mapRef.current.captureSnapshot();
+          } catch (captureError) {
+            console.error("Failed to capture map snapshot", captureError);
+          }
+        }
+
+        await generateDesignBriefPdf({ payload, mapImage });
+      } catch (error) {
+        console.error("Failed to export design brief", error);
+      } finally {
+        setExportingBrief(false);
+      }
+    },
+    []
+  );
 
   const windInputs = useMemo(() => {
     const terrainCategory = form.terrainCategory || DEFAULT_TERRAIN_CATEGORY;
@@ -311,7 +339,7 @@ const FencesPage = () => {
         </p>
       </header>
 
-      <Map postcode={form.postcode} onPostcodeChange={(value) => updateField("postcode", value)} />
+      <Map ref={mapRef} postcode={form.postcode} onPostcodeChange={(value) => updateField("postcode", value)} />
       <FenceInputs
         form={form}
         errors={errors}
@@ -334,6 +362,9 @@ const FencesPage = () => {
             wind={windWithTerrain}
             requiredHeight={requiredHeight}
             onToggle={handleToggle}
+            form={form}
+            onExportBrief={handleExportDesignBrief}
+            exporting={exportingBrief}
           />
         </section>
       )}
