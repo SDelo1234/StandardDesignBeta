@@ -117,11 +117,13 @@ const Map = forwardRef(({ postcode, onPostcodeChange }, ref) => {
 
         const sourceWidth = Math.min(canvas.width, TARGET_SNAPSHOT_SIZE);
         const sourceHeight = Math.min(canvas.height, TARGET_SNAPSHOT_SIZE);
+        const sourceX = Math.max(0, Math.round((canvas.width - sourceWidth) / 2));
+        const sourceY = Math.max(0, Math.round((canvas.height - sourceHeight) / 2));
 
         ctx.drawImage(
           canvas,
-          0,
-          0,
+          sourceX,
+          sourceY,
           sourceWidth,
           sourceHeight,
           0,

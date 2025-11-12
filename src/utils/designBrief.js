@@ -24,27 +24,78 @@ const ensureValue = (value) => (value === null || value === undefined || value =
 
 const logoDataUrlCache = {};
 
-const getDataUrlForImage = async (url) => {
-  if (!url) return null;
-  if (logoDataUrlCache[url]) return logoDataUrlCache[url];
-
-  try {
-    const response = await fetch(url, { mode: "cors" });
-    if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
-    const blob = await response.blob();
-    const reader = new FileReader();
-    const dataUrlPromise = new Promise((resolve, reject) => {
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-    });
-    reader.readAsDataURL(blob);
-    const dataUrl = await dataUrlPromise;
-    logoDataUrlCache[url] = dataUrl;
-    return dataUrl;
-  } catch (error) {
-    console.error("Failed to load image for PDF", error);
-    return null;
+const createBrowneLogoFallback = () => {
+  if (logoDataUrlCache.__browneFallback) {
+    return logoDataUrlCache.__browneFallback;
   }
+
+  if (typeof document === "undefined") return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 600;
+  canvas.height = 200;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#003A5D";
+  ctx.font = "bold 120px 'Helvetica Neue', Arial, sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.fillText("BROWNE", 30, canvas.height / 2 + 10);
+
+  ctx.fillStyle = "#8DC63F";
+  ctx.fillRect(32, canvas.height - 48, 220, 14);
+
+  const dataUrl = canvas.toDataURL("image/png");
+  logoDataUrlCache.__browneFallback = dataUrl;
+  return dataUrl;
+};
+
+const getDataUrlForImage = async (url, fallbackFactory) => {
+  if (url && logoDataUrlCache[url]) {
+    return logoDataUrlCache[url];
+  }
+
+  if (url) {
+    try {
+      const response = await fetch(url, { mode: "cors" });
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      const dataUrlPromise = new Promise((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(blob);
+      const dataUrl = await dataUrlPromise;
+      logoDataUrlCache[url] = dataUrl;
+      return dataUrl;
+    } catch (error) {
+      console.error("Failed to load image for PDF", error);
+    }
+  }
+
+  if (fallbackFactory) {
+    const fallback = await fallbackFactory();
+    if (fallback) {
+      if (url) {
+        logoDataUrlCache[url] = fallback;
+      }
+      return fallback;
+    }
+  }
+
+  return null;
+};
+
+const inferImageFormat = (dataUrl) => {
+  if (typeof dataUrl !== "string") return "PNG";
+  if (dataUrl.startsWith("data:image/jpeg") || dataUrl.startsWith("data:image/jpg")) {
+    return "JPEG";
+  }
+  return "PNG";
 };
 
 const formatDateLabel = (date) => {
@@ -238,33 +289,209 @@ export const createDesignBriefPayload = ({
   };
 };
 
-const drawTable = (doc, { title, rows, startY, margin, pageWidth }) => {
-  let y = startY;
-  const labelWidth = 180;
-  const valueWidth = pageWidth - margin * 2 - labelWidth;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text(title, margin, y);
-  y += 10;
+const SECTION_GAP = 28;
 
-  doc.setDrawColor(210);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+const drawTableCard = (doc, { title, rows, startY, margin, pageWidth }) => {
+  const cardPadding = 24;
+  const contentWidth = pageWidth - margin * 2;
+  const tableWidth = contentWidth - cardPadding * 2;
+  const labelColumnWidth = 190;
+  const columnGap = 20;
+  const valueColumnWidth = tableWidth - labelColumnWidth - columnGap;
+  const rowPadding = 12;
+  const lineHeight = 16;
+  const rowSpacing = 8;
 
-  rows.forEach((row) => {
-    const labelLines = doc.splitTextToSize(ensureValue(row.label), labelWidth);
-    const valueLines = doc.splitTextToSize(ensureValue(row.value), valueWidth);
-    const lineCount = Math.max(labelLines.length, valueLines.length);
-    const rowHeight = lineCount * 12 + 4;
-
-    doc.text(labelLines, margin, y + 12);
-    doc.text(valueLines, margin + labelWidth, y + 12);
-    doc.line(margin, y + rowHeight, pageWidth - margin, y + rowHeight);
-
-    y += rowHeight + 2;
+  const measurements = rows.map((row) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    const labelLines = doc.splitTextToSize(ensureValue(row.label), labelColumnWidth);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    const valueLines = doc.splitTextToSize(ensureValue(row.value), valueColumnWidth);
+    const contentLines = Math.max(labelLines.length, valueLines.length);
+    const height = contentLines * lineHeight + rowPadding * 2;
+    return { labelLines, valueLines, height };
   });
 
-  return y + 6;
+  const bodyHeight = measurements.reduce(
+    (total, row, index) => total + row.height + (index < measurements.length - 1 ? rowSpacing : 0),
+    0
+  );
+  const cardHeight = cardPadding + 12 + 6 + bodyHeight + cardPadding;
+
+  doc.setDrawColor(229, 231, 235);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(margin, startY, contentWidth, cardHeight, 12, 12, "FD");
+
+  let y = startY + cardPadding;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(17, 24, 39);
+  doc.text(title, margin + cardPadding, y);
+  y += 18;
+
+  const tableX = margin + cardPadding;
+  measurements.forEach((row, index) => {
+    const rowTop = y;
+    const rowHeight = row.height;
+
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineWidth(0.6);
+    if (index % 2 === 0) {
+      doc.setFillColor(249, 250, 251);
+    } else {
+      doc.setFillColor(255, 255, 255);
+    }
+    doc.roundedRect(tableX, rowTop, tableWidth, rowHeight, 6, 6, "FD");
+
+    const labelX = tableX + 14;
+    const valueX = tableX + labelColumnWidth + columnGap;
+    const textY = rowTop + rowPadding + 12;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    row.labelLines.forEach((line, lineIndex) => {
+      doc.text(line, labelX, textY + lineIndex * lineHeight);
+    });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(17, 24, 39);
+    row.valueLines.forEach((line, lineIndex) => {
+      doc.text(line, valueX, textY + lineIndex * lineHeight);
+    });
+
+    y += rowHeight + rowSpacing;
+  });
+
+  return startY + cardHeight + SECTION_GAP;
+};
+
+const drawSelectedOptionsCard = (doc, { options, startY, margin, pageWidth }) => {
+  if (!options.length) {
+    return startY;
+  }
+
+  const cardPadding = 24;
+  const contentWidth = pageWidth - margin * 2;
+  const bodyWidth = contentWidth - cardPadding * 2;
+  const nameLineHeight = 16;
+  const detailLineHeight = 14;
+
+  const items = options.map((option) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    const nameLines = doc.splitTextToSize(ensureValue(option.name), bodyWidth);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const detailLine = `${ensureValue(option.capacity)} · max height ${ensureValue(option.maxHeight)}`;
+    const detailLines = doc.splitTextToSize(detailLine, bodyWidth);
+    const height =
+      nameLines.length * nameLineHeight +
+      (detailLines.length ? detailLines.length * detailLineHeight + 6 : 0) +
+      10;
+    return { nameLines, detailLines, height };
+  });
+
+  const bodyHeight = items.reduce((total, item) => total + item.height, 0);
+  const dividersHeight = (items.length - 1) * 12;
+  const cardHeight = cardPadding + 12 + 8 + bodyHeight + dividersHeight + cardPadding;
+
+  doc.setDrawColor(229, 231, 235);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(margin, startY, contentWidth, cardHeight, 12, 12, "FD");
+
+  let y = startY + cardPadding;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(17, 24, 39);
+  doc.text("Selected fence options", margin + cardPadding, y);
+  y += 20;
+
+  items.forEach((item, index) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(17, 24, 39);
+    doc.text(item.nameLines, margin + cardPadding, y);
+    y += item.nameLines.length * nameLineHeight;
+
+    if (item.detailLines.length) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(75, 85, 99);
+      doc.text(item.detailLines, margin + cardPadding, y);
+      y += item.detailLines.length * detailLineHeight;
+    }
+
+    y += 10;
+    if (index < items.length - 1) {
+      doc.setDrawColor(229, 231, 235);
+      doc.line(margin + cardPadding, y, margin + contentWidth - cardPadding, y);
+      y += 12;
+    }
+  });
+
+  return startY + cardHeight + SECTION_GAP;
+};
+
+const drawInfoCard = (doc, { items, startY, margin, pageWidth }) => {
+  if (!items.length) {
+    return startY;
+  }
+
+  const cardPadding = 24;
+  const contentWidth = pageWidth - margin * 2;
+  const textWidth = contentWidth - cardPadding * 2;
+  const headingLineHeight = 13;
+  const bodyLineHeight = 12;
+
+  const measured = items.map((item) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    const headingLines = doc.splitTextToSize(ensureValue(item.heading), textWidth);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const bodyLines = doc.splitTextToSize(ensureValue(item.text), textWidth);
+    const height =
+      headingLines.length * headingLineHeight +
+      (bodyLines.length ? bodyLines.length * bodyLineHeight + 10 : 0);
+    return { headingLines, bodyLines, height };
+  });
+
+  const bodyHeight = measured.reduce(
+    (total, item, index) => total + item.height + (index < measured.length - 1 ? 14 : 0),
+    0
+  );
+  const cardHeight = cardPadding + bodyHeight + cardPadding;
+
+  doc.setDrawColor(229, 231, 235);
+  doc.setFillColor(249, 250, 251);
+  doc.roundedRect(margin, startY, contentWidth, cardHeight, 12, 12, "FD");
+
+  let y = startY + cardPadding;
+  measured.forEach((item, index) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(55, 65, 81);
+    doc.text(item.headingLines, margin + cardPadding, y);
+    y += item.headingLines.length * headingLineHeight;
+
+    if (item.bodyLines.length) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text(item.bodyLines, margin + cardPadding, y);
+      y += item.bodyLines.length * bodyLineHeight;
+    }
+
+    if (index < measured.length - 1) {
+      y += 14;
+    }
+  });
+
+  return startY + cardHeight + SECTION_GAP;
 };
 
 export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
@@ -277,52 +504,90 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
   const margin = 48;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+  const contentWidth = pageWidth - margin * 2;
 
   const { meta } = payload;
 
+  doc.setDrawColor(229, 231, 235);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin, margin, contentWidth, 118, 16, 16, "FD");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text(meta.projectName || "Design brief", margin, margin + 12);
+  doc.setTextColor(17, 24, 39);
+  doc.text(meta.projectName || "Design brief", margin + 28, margin + 44);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text(`Postcode: ${meta.postcode || "–"}`, margin, margin + 32);
+  doc.setTextColor(75, 85, 99);
+  doc.text(`Postcode: ${meta.postcode || "–"}`, margin + 28, margin + 66);
   if (meta.generatedLabel) {
-    doc.text(`Generated: ${meta.generatedLabel}`, margin, margin + 48);
+    doc.text(`Generated: ${meta.generatedLabel}`, margin + 28, margin + 82);
   }
 
-  const logoDataUrl = await getDataUrlForImage(BROWNE_LOGO_URL);
+  const logoDataUrl = await getDataUrlForImage(BROWNE_LOGO_URL, createBrowneLogoFallback);
   if (logoDataUrl) {
-    const logoWidth = 120;
-    const logoHeight = 40;
-    doc.addImage(logoDataUrl, "JPEG", pageWidth - margin - logoWidth, margin, logoWidth, logoHeight);
+    const logoWidth = 132;
+    const logoHeight = 48;
+    doc.addImage(
+      logoDataUrl,
+      inferImageFormat(logoDataUrl),
+      pageWidth - margin - 28 - logoWidth,
+      margin + 24,
+      logoWidth,
+      logoHeight
+    );
   }
 
-  let y = margin + 70;
+  let y = margin + 118 + SECTION_GAP;
 
-  if (payload.selectedOptions.length > 0) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("Selected fence options", margin, y);
-    y += 12;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    payload.selectedOptions.forEach((option) => {
-      const line = `${option.name} (${option.capacity} · max height ${option.maxHeight})`;
-      const textLines = doc.splitTextToSize(line, pageWidth - margin * 2);
-      doc.text(textLines, margin, y + 10);
-      y += textLines.length * 12;
-    });
-    y += 12;
-  }
+  y = drawSelectedOptionsCard(doc, {
+    options: payload.selectedOptions,
+    startY: y,
+    margin,
+    pageWidth,
+  });
 
   if (mapImage) {
-    const mapSize = Math.min(pageWidth - margin * 2, 260);
-    doc.addImage(mapImage, "PNG", margin, y, mapSize, mapSize);
-    y += mapSize + 16;
+    const cardPadding = 24;
+    const mapWidth = contentWidth - cardPadding * 2;
+    const mapSize = Math.min(mapWidth, 360);
+    const cardHeight = cardPadding + 12 + 12 + mapSize + 28 + cardPadding;
+
+    doc.setDrawColor(229, 231, 235);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(margin, y, contentWidth, cardHeight, 12, 12, "FD");
+
+    const headingY = y + cardPadding + 12;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(17, 24, 39);
+    doc.text("Site location map", margin + cardPadding, headingY);
+
+    const mapY = headingY + 12;
+    doc.addImage(
+      mapImage,
+      "PNG",
+      margin + cardPadding,
+      mapY,
+      mapSize,
+      mapSize
+    );
+    doc.setDrawColor(209, 213, 219);
+    doc.roundedRect(margin + cardPadding, mapY, mapSize, mapSize, 10, 10, "S");
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(107, 114, 128);
+    doc.text(
+      meta.postcode ? `Centered on ${meta.postcode}` : "Map capture",
+      margin + cardPadding,
+      mapY + mapSize + 18
+    );
+
+    y += cardHeight + SECTION_GAP;
   }
 
-  y = drawTable(doc, {
+  y = drawTableCard(doc, {
     title: "Inputs",
     rows: payload.inputs,
     startY: y,
@@ -330,7 +595,7 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
     pageWidth,
   });
 
-  y = drawTable(doc, {
+  y = drawTableCard(doc, {
     title: "Wind outputs",
     rows: payload.outputs,
     startY: y,
@@ -338,25 +603,25 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
     pageWidth,
   });
 
+  const infoItems = [];
   if (payload.windSource) {
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(9);
-    const sourceLines = doc.splitTextToSize(payload.windSource, pageWidth - margin * 2);
-    doc.text(sourceLines, margin, y + 10);
-    y += sourceLines.length * 12 + 8;
+    infoItems.push({ heading: "Wind data source", text: payload.windSource });
+  }
+  if (payload.terrain.description) {
+    infoItems.push({ heading: payload.terrain.label || "Terrain notes", text: payload.terrain.description });
   }
 
-  if (payload.terrain.description) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    const terrainLines = doc.splitTextToSize(payload.terrain.description, pageWidth - margin * 2);
-    doc.text(terrainLines, margin, y + 8);
-    y += terrainLines.length * 12 + 4;
-  }
+  y = drawInfoCard(doc, {
+    items: infoItems,
+    startY: y,
+    margin,
+    pageWidth,
+  });
 
   doc.setFont("helvetica", "italic");
   doc.setFontSize(8);
-  const footerLines = doc.splitTextToSize(payload.notes, pageWidth - margin * 2);
+  doc.setTextColor(107, 114, 128);
+  const footerLines = doc.splitTextToSize(payload.notes, contentWidth);
   const footerY = pageHeight - margin / 2;
   doc.text(footerLines, margin, footerY);
 
