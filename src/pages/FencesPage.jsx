@@ -5,6 +5,7 @@ import Map from "../components/Map";
 import WindResults from "../components/WindResults";
 import useWind from "../hooks/useWind";
 import { DEFAULT_TERRAIN_CATEGORY, Z0_BY_TERRAIN } from "../utils/terrain";
+import { deriveWindFactors } from "../utils/wind";
 
 const IMG1 = "https://i.ibb.co/LzMWRbqj/IMG1-fence-1.jpg";
 const IMG2 = "https://i.ibb.co/Kc61kkHd/IMG2-fence-2.jpg";
@@ -22,7 +23,8 @@ const parseOptionalNumber = (value) => {
 const initialForm = {
   projectName: "",
   postcode: "",
-  duration: "< 28 days",
+  installationMonth: null,
+  durationCategory: null,
   ground: "Hardstanding (concrete/asphalt)",
   height: "2.0 m",
   distanceToSea: "",
@@ -100,6 +102,12 @@ const FencesPage = () => {
     if (key === "terrainCategory") {
       return value ? "" : "Select a terrain category.";
     }
+    if (key === "installationMonth") {
+      return value ? "" : "Select installation month.";
+    }
+    if (key === "durationCategory") {
+      return value ? "" : "Select expected duration.";
+    }
     return "";
   }, []);
 
@@ -160,25 +168,99 @@ const FencesPage = () => {
       fenceHeight_m: requiredHeight,
       terrainCategory,
       terrainRoughness_z0_m: terrainRoughness,
+      installationMonth: form.installationMonth,
+      durationCategory: form.durationCategory,
     };
   }, [
     effectiveAltitude,
     form.distanceToSea,
+    form.durationCategory,
+    form.installationMonth,
     form.postcode,
     form.terrainCategory,
     form.terrainRoughness_z0_m,
     requiredHeight,
   ]);
 
+  useEffect(() => {
+    setErrors((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      const requiresMeta = Boolean(wind);
+
+      if (requiresMeta && !form.installationMonth) {
+        if (next.installationMonth !== "Select installation month.") {
+          next.installationMonth = "Select installation month.";
+          changed = true;
+        }
+      } else if (next.installationMonth) {
+        delete next.installationMonth;
+        changed = true;
+      }
+
+      if (requiresMeta && !form.durationCategory) {
+        if (next.durationCategory !== "Select expected duration.") {
+          next.durationCategory = "Select expected duration.";
+          changed = true;
+        }
+      } else if (next.durationCategory) {
+        delete next.durationCategory;
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+  }, [wind, form.installationMonth, form.durationCategory]);
+
+  const derivedFactors = useMemo(() => {
+    if (!form.installationMonth || !form.durationCategory) {
+      return null;
+    }
+    return deriveWindFactors({
+      installationMonth: form.installationMonth,
+      durationCategory: form.durationCategory,
+    });
+  }, [form.installationMonth, form.durationCategory]);
+
   const windWithTerrain = useMemo(() => {
-    if (!wind) return null;
+    if (!wind || !derivedFactors) return null;
+
+    const baseSpeed = Number.isFinite(wind.vb_map)
+      ? wind.vb_map
+      : Number.isFinite(wind.speed_ms)
+      ? wind.speed_ms
+      : null;
+
+    if (!Number.isFinite(baseSpeed) || baseSpeed === null) {
+      return null;
+    }
+
+    const basePressure = Number.isFinite(wind.pressure_kpa)
+      ? wind.pressure_kpa
+      : Number((0.0005 * baseSpeed * baseSpeed).toFixed(3));
+
+    const adjustment = derivedFactors.cProb * derivedFactors.cSeason;
+    const adjustedSpeed = baseSpeed * adjustment;
+    const adjustedPressure = Number(
+      (0.0005 * adjustedSpeed * adjustedSpeed).toFixed(3),
+    );
+
     return {
       ...wind,
+      baseWind: {
+        speed_ms: wind.speed_ms,
+        pressure_kpa: basePressure,
+        vb_map_ms: baseSpeed,
+      },
+      speed_ms: adjustedSpeed,
+      pressure_kpa: adjustedPressure,
+      vb_map: baseSpeed,
+      derivedFactors,
       terrainCategory: windInputs.terrainCategory,
       terrainRoughness_z0_m: windInputs.terrainRoughness_z0_m,
       inputs: windInputs,
     };
-  }, [wind, windInputs]);
+  }, [wind, derivedFactors, windInputs]);
 
   return (
     <div className="mx-auto max-w-5xl p-6">
