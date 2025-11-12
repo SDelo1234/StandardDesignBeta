@@ -18,6 +18,11 @@ const formatRoughness = (value) => {
   return value < 0.01 ? `${value.toFixed(3)} m` : `${value.toFixed(2)} m`;
 };
 
+const formatFactor = (value) => {
+  if (!Number.isFinite(value)) return "–";
+  return value.toFixed(2);
+};
+
 const WindResults = ({ wind }) => {
   if (!wind) return null;
 
@@ -30,6 +35,8 @@ const WindResults = ({ wind }) => {
   const terrainLabel = terrainOption
     ? terrainOption.title
     : wind.terrainCategory || "–";
+
+  const factors = wind.derivedFactors;
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
@@ -59,6 +66,37 @@ const WindResults = ({ wind }) => {
           <div className="text-2xl font-semibold">{formatRoughness(wind.terrainRoughness_z0_m)}</div>
         </div>
       </div>
+      {factors && (
+        <div className="mt-6">
+          <h3 className="mb-2 text-sm font-medium text-gray-700">Wind factors</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div
+              className="rounded-xl border border-gray-200 p-4"
+              title="BS EN 1991-1-6 Table 3.1 (actions during execution)"
+            >
+              <div className="text-xs text-gray-500">Return period (Tr)</div>
+              <div className="text-2xl font-semibold">
+                {factors.returnPeriodYears ? `${factors.returnPeriodYears} years` : "–"}
+              </div>
+            </div>
+            <div
+              className="rounded-xl border border-gray-200 p-4"
+              title="UK NA to EN 1991-1-4 Table NA.2"
+            >
+              <div className="text-xs text-gray-500">C_prob</div>
+              <div className="text-2xl font-semibold">{formatFactor(factors.cProb)}</div>
+            </div>
+            <div
+              className="rounded-xl border border-gray-200 p-4"
+              title="UK NA to EN 1991-1-4 Table NA.2"
+            >
+              <div className="text-xs text-gray-500">C_season</div>
+              <div className="text-2xl font-semibold">{formatFactor(factors.cSeason)}</div>
+              <div className="mt-1 text-xs text-gray-600">Start month based</div>
+            </div>
+          </div>
+        </div>
+      )}
       <p className="mt-4 text-xs text-gray-500">{sourceMessage}</p>
     </div>
   );
