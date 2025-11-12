@@ -9,6 +9,30 @@ const formatAltitudeValue = (value) => {
   return Number.isInteger(rounded) ? `${rounded.toFixed(0)} m AOD` : `${rounded.toFixed(1)} m AOD`;
 };
 
+const MONTH_OPTIONS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const DURATION_OPTIONS = [
+  { value: "UNDER_3_DAYS", label: "Under 3 days" },
+  { value: "UNDER_1_MONTH", label: "Under 1 month" },
+  { value: "UNDER_2_MONTHS", label: "Under 2 months" },
+  { value: "UNDER_4_MONTHS", label: "Under 4 months" },
+  { value: "UNDER_A_YEAR", label: "Under a year" },
+  { value: "OVER_A_YEAR", label: "Over a year" },
+];
+
 const FenceInputs = ({
   form,
   errors,
@@ -71,17 +95,51 @@ const FenceInputs = ({
             <p className="mt-1 text-xs text-gray-500">Used to derive site wind data.</p>
           </div>
           <div>
+            <label className="mb-1 block text-sm font-medium">Month installed</label>
+            <select
+              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
+                errors.installationMonth ? "border-red-500" : "border-gray-300"
+              }`}
+              value={form.installationMonth ?? ""}
+              onChange={(e) =>
+                onChange(
+                  "installationMonth",
+                  e.target.value ? Number(e.target.value) : null,
+                )
+              }
+            >
+              <option value="">Select month…</option>
+              {MONTH_OPTIONS.map((label, index) => (
+                <option key={label} value={index + 1}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            {errors.installationMonth && (
+              <p className="mt-1 text-xs text-red-600">{errors.installationMonth}</p>
+            )}
+          </div>
+          <div>
             <label className="mb-1 block text-sm font-medium">Expected duration on site</label>
             <select
-              className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring"
-              value={form.duration}
-              onChange={(e) => onChange("duration", e.target.value)}
+              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
+                errors.durationCategory ? "border-red-500" : "border-gray-300"
+              }`}
+              value={form.durationCategory ?? ""}
+              onChange={(e) =>
+                onChange("durationCategory", e.target.value || null)
+              }
             >
-              <option>&lt; 28 days</option>
-              <option>1–3 months</option>
-              <option>3–6 months</option>
-              <option>&gt; 6 months</option>
+              <option value="">Select duration…</option>
+              {DURATION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
+            {errors.durationCategory && (
+              <p className="mt-1 text-xs text-red-600">{errors.durationCategory}</p>
+            )}
           </div>
         </div>
       </section>
@@ -117,6 +175,20 @@ const FenceInputs = ({
               value={form.distanceToSea}
               onChange={(e) => onChange("distanceToSea", e.target.value)}
             />
+            <p className="mt-1 text-xs text-gray-500">
+              Need help? Use the
+              {" "}
+              <a
+                href="https://www.doogal.co.uk/DistanceToSea"
+                className="font-medium text-[var(--mwp-navy)] underline"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                Doogal distance to sea calculator
+              </a>
+              {" "}
+              and enter the result here.
+            </p>
           </div>
           <div className="md:col-span-2 lg:col-span-2">
             <label className="mb-1 block text-sm font-medium">Altitude (dataset)</label>
