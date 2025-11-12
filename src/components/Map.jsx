@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import useGeo from "../hooks/useGeo";
 
 const ensureLeaflet = () =>
@@ -43,7 +43,40 @@ const reverseGeocode = async (lat, lon) => {
   }
 };
 
-const Map = ({ postcode, onPostcodeChange }) => {
+const TARGET_SNAPSHOT_SIZE = 1000;
+
+let html2canvasPromise = null;
+
+const ensureHtml2canvas = () => {
+  if (window.html2canvas) {
+    return Promise.resolve(window.html2canvas);
+  }
+
+  if (html2canvasPromise) {
+    return html2canvasPromise;
+  }
+
+  html2canvasPromise = new Promise((resolve, reject) => {
+    const scriptId = "html2canvas-js";
+    const existing = document.getElementById(scriptId);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.html2canvas));
+      existing.addEventListener("error", reject);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
+    script.onload = () => resolve(window.html2canvas);
+    script.onerror = reject;
+    document.body.appendChild(script);
+  });
+
+  return html2canvasPromise;
+};
+
+const Map = forwardRef(({ postcode, onPostcodeChange }, ref) => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -51,6 +84,59 @@ const Map = ({ postcode, onPostcodeChange }) => {
   const { geo, geoError, setGeoError } = useGeo(postcode);
 
   const hasPostcode = useMemo(() => Boolean((postcode || "").trim()), [postcode]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      async captureSnapshot() {
+        if (!containerRef.current || !mapRef.current) return null;
+        const node = containerRef.current;
+        const width = node.offsetWidth;
+        const height = node.offsetHeight;
+        if (!width || !height) return null;
+
+        const scale = Math.max(TARGET_SNAPSHOT_SIZE / height, TARGET_SNAPSHOT_SIZE / width, 1);
+
+        const html2canvas = await ensureHtml2canvas();
+        if (!html2canvas) return null;
+
+        const canvas = await html2canvas(node, {
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          scale,
+        });
+
+        const crop = document.createElement("canvas");
+        crop.width = TARGET_SNAPSHOT_SIZE;
+        crop.height = TARGET_SNAPSHOT_SIZE;
+        const ctx = crop.getContext("2d");
+        if (!ctx) return null;
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, TARGET_SNAPSHOT_SIZE, TARGET_SNAPSHOT_SIZE);
+
+        const sourceWidth = Math.min(canvas.width, TARGET_SNAPSHOT_SIZE);
+        const sourceHeight = Math.min(canvas.height, TARGET_SNAPSHOT_SIZE);
+        const sourceX = Math.max(0, Math.round((canvas.width - sourceWidth) / 2));
+        const sourceY = Math.max(0, Math.round((canvas.height - sourceHeight) / 2));
+
+        ctx.drawImage(
+          canvas,
+          sourceX,
+          sourceY,
+          sourceWidth,
+          sourceHeight,
+          0,
+          0,
+          TARGET_SNAPSHOT_SIZE,
+          TARGET_SNAPSHOT_SIZE
+        );
+
+        return crop.toDataURL("image/png");
+      },
+    }),
+    []
+  );
 
   useEffect(() => {
     return () => {
@@ -125,6 +211,7 @@ const Map = ({ postcode, onPostcodeChange }) => {
           L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
               maxZoom: 19,
               attribution: "&copy; OpenStreetMap",
+              crossOrigin: true,
             })
             .addTo(map);
           mapRef.current = map;
@@ -172,6 +259,6 @@ const Map = ({ postcode, onPostcodeChange }) => {
       )}
     </section>
   );
-};
+});
 
 export default Map;
