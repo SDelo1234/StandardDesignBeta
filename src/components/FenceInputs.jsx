@@ -175,6 +175,20 @@ const FenceInputs = ({
               value={form.distanceToSea}
               onChange={(e) => onChange("distanceToSea", e.target.value)}
             />
+            <p className="mt-1 text-xs text-gray-500">
+              Need help? Use the
+              {" "}
+              <a
+                href="https://www.doogal.co.uk/DistanceToSea"
+                className="font-medium text-[var(--mwp-navy)] underline"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                Doogal distance to sea calculator
+              </a>
+              {" "}
+              and enter the result here.
+            </p>
           </div>
           <div className="md:col-span-2 lg:col-span-2">
             <label className="mb-1 block text-sm font-medium">Altitude (dataset)</label>

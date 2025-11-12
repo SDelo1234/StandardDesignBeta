@@ -20,6 +20,8 @@ export const C_SEASON = {
   12: { m1: 0.94, m2: 1.0, m4: 1.0 },
 };
 
+export const C_DIR = 1.0;
+
 export const mapDurationToReturnPeriod = (durationCategory) => {
   switch (durationCategory) {
     case "UNDER_3_DAYS":
@@ -61,5 +63,44 @@ export const deriveWindFactors = ({ installationMonth, durationCategory }) => {
     returnPeriodYears,
     cProb,
     cSeason,
+  };
+};
+
+const coercePositiveNumber = (value, fallback) => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return fallback;
+  }
+  return value;
+};
+
+export const computeAltitudeFactor = ({ altitude_m = 0, referenceHeight_m = 10 }) => {
+  const altitude =
+    typeof altitude_m === "number" && Number.isFinite(altitude_m) && altitude_m > 0
+      ? altitude_m
+      : 0;
+  const height = coercePositiveNumber(referenceHeight_m, 10);
+  const exponent = Math.pow(10 / height, 1 / 5);
+  return 1 + 0.001 * altitude * exponent;
+};
+
+export const computeBasicWind = ({
+  vb_map_ms,
+  cAlt = 1,
+  cDir = C_DIR,
+  cSeason = 1,
+  cProb = 1,
+}) => {
+  if (typeof vb_map_ms !== "number" || !Number.isFinite(vb_map_ms)) {
+    return null;
+  }
+
+  const vb_ms = vb_map_ms * cAlt * cDir * cSeason * cProb;
+  const qb_pa = 0.613 * vb_ms * vb_ms;
+  const qb_kpa = qb_pa / 1000;
+
+  return {
+    vb_ms,
+    qb_pa,
+    qb_kpa,
   };
 };

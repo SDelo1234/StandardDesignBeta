@@ -5,7 +5,12 @@ import Map from "../components/Map";
 import WindResults from "../components/WindResults";
 import useWind from "../hooks/useWind";
 import { DEFAULT_TERRAIN_CATEGORY, Z0_BY_TERRAIN } from "../utils/terrain";
-import { deriveWindFactors } from "../utils/wind";
+import {
+  deriveWindFactors,
+  computeAltitudeFactor,
+  computeBasicWind,
+  C_DIR,
+} from "../utils/wind";
 
 const IMG1 = "https://i.ibb.co/LzMWRbqj/IMG1-fence-1.jpg";
 const IMG2 = "https://i.ibb.co/Kc61kkHd/IMG2-fence-2.jpg";
@@ -216,11 +221,37 @@ const FencesPage = () => {
     if (!form.installationMonth || !form.durationCategory) {
       return null;
     }
-    return deriveWindFactors({
+
+    const baseFactors = deriveWindFactors({
       installationMonth: form.installationMonth,
       durationCategory: form.durationCategory,
     });
-  }, [form.installationMonth, form.durationCategory]);
+
+    const altitudeValue =
+      typeof effectiveAltitude === "number" && Number.isFinite(effectiveAltitude)
+        ? effectiveAltitude
+        : 0;
+    const referenceHeight =
+      typeof requiredHeight === "number" && Number.isFinite(requiredHeight) && requiredHeight > 0
+        ? requiredHeight
+        : 10;
+
+    const cAlt = computeAltitudeFactor({
+      altitude_m: altitudeValue,
+      referenceHeight_m: referenceHeight,
+    });
+
+    return {
+      ...baseFactors,
+      cAlt,
+      cDir: C_DIR,
+    };
+  }, [
+    form.installationMonth,
+    form.durationCategory,
+    effectiveAltitude,
+    requiredHeight,
+  ]);
 
   const windWithTerrain = useMemo(() => {
     if (!wind || !derivedFactors) return null;
@@ -235,27 +266,36 @@ const FencesPage = () => {
       return null;
     }
 
-    const basePressure = Number.isFinite(wind.pressure_kpa)
-      ? wind.pressure_kpa
-      : Number((0.0005 * baseSpeed * baseSpeed).toFixed(3));
+    const basePressurePa = 0.613 * baseSpeed * baseSpeed;
+    const basePressureKpa = basePressurePa / 1000;
 
-    const adjustment = derivedFactors.cProb * derivedFactors.cSeason;
-    const adjustedSpeed = baseSpeed * adjustment;
-    const adjustedPressure = Number(
-      (0.0005 * adjustedSpeed * adjustedSpeed).toFixed(3),
-    );
+    const basicWind = computeBasicWind({
+      vb_map_ms: baseSpeed,
+      cAlt: derivedFactors.cAlt,
+      cDir: derivedFactors.cDir,
+      cSeason: derivedFactors.cSeason,
+      cProb: derivedFactors.cProb,
+    });
+
+    if (!basicWind) {
+      return null;
+    }
 
     return {
       ...wind,
       baseWind: {
         speed_ms: wind.speed_ms,
-        pressure_kpa: basePressure,
+        pressure_kpa: basePressureKpa,
         vb_map_ms: baseSpeed,
       },
-      speed_ms: adjustedSpeed,
-      pressure_kpa: adjustedPressure,
+      speed_ms: basicWind.vb_ms,
+      pressure_kpa: basicWind.qb_kpa,
       vb_map: baseSpeed,
-      derivedFactors,
+      derivedFactors: {
+        ...derivedFactors,
+        vb_ms: basicWind.vb_ms,
+        qb_kpa: basicWind.qb_kpa,
+      },
       terrainCategory: windInputs.terrainCategory,
       terrainRoughness_z0_m: windInputs.terrainRoughness_z0_m,
       inputs: windInputs,
