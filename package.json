@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4173",
-    "check:datasets": "node scripts/check-datasets.mjs"
+    "check:datasets": "node scripts/check-datasets.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -15,11 +16,11 @@
     "react-router-dom": "^6.26.1"
   },
   "devDependencies": {
-    "vite": "^5.4.0",
     "@vitejs/plugin-react": "^4.3.0",
-    "tailwindcss": "^3.4.13",
+    "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
-    "autoprefixer": "^10.4.20"
+    "tailwindcss": "^3.4.13",
+    "vite": "^5.4.0"
   },
   "engines": {
     "node": ">=18"
