@@ -1,37 +1,8 @@
 import React from "react";
 import TerrainCategorySelector from "./TerrainCategorySelector";
 import { formatPostcode } from "../utils/postcode";
-
-const formatAltitudeValue = (value) => {
-  if (value === null || value === undefined) return null;
-  const rounded = Math.round(Number(value) * 10) / 10;
-  if (!Number.isFinite(rounded)) return null;
-  return Number.isInteger(rounded) ? `${rounded.toFixed(0)} m AOD` : `${rounded.toFixed(1)} m AOD`;
-};
-
-const MONTH_OPTIONS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-const DURATION_OPTIONS = [
-  { value: "UNDER_3_DAYS", label: "Under 3 days" },
-  { value: "UNDER_1_MONTH", label: "Under 1 month" },
-  { value: "UNDER_2_MONTHS", label: "Under 2 months" },
-  { value: "UNDER_4_MONTHS", label: "Under 4 months" },
-  { value: "UNDER_A_YEAR", label: "Under a year" },
-  { value: "OVER_A_YEAR", label: "Over a year" },
-];
+import { formatAltitudeValue } from "../utils/formatters";
+import { DURATION_OPTIONS, MONTH_LABELS } from "../utils/formOptions";
 
 const FenceInputs = ({
   form,
@@ -109,7 +80,7 @@ const FenceInputs = ({
               }
             >
               <option value="">Select month…</option>
-              {MONTH_OPTIONS.map((label, index) => (
+              {MONTH_LABELS.map((label, index) => (
                 <option key={label} value={index + 1}>
                   {label}
                 </option>
