@@ -289,28 +289,37 @@ export const createDesignBriefPayload = ({
   };
 };
 
-const SECTION_GAP = 28;
+const SECTION_GAP = 24;
+const CARD_GAP = 18;
+const COLUMN_GAP = 24;
 
-const drawTableCard = (doc, { title, rows, startY, margin, pageWidth }) => {
-  const cardPadding = 24;
-  const contentWidth = pageWidth - margin * 2;
-  const tableWidth = contentWidth - cardPadding * 2;
-  const labelColumnWidth = 190;
-  const columnGap = 20;
+const drawTableCard = (doc, { title, rows, startX, startY, width }) => {
+  if (!rows.length) {
+    return startY;
+  }
+
+  const cardPadding = 18;
+  const tableWidth = width - cardPadding * 2;
+  const labelColumnWidth = Math.min(170, tableWidth * 0.44);
+  const columnGap = 14;
   const valueColumnWidth = tableWidth - labelColumnWidth - columnGap;
-  const rowPadding = 12;
-  const lineHeight = 16;
-  const rowSpacing = 8;
+  const rowPadding = 6;
+  const valueLineHeight = 13;
+  const labelLineHeight = 11;
+  const rowSpacing = 4;
 
   const measurements = rows.map((row) => {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     const labelLines = doc.splitTextToSize(ensureValue(row.label), labelColumnWidth);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     const valueLines = doc.splitTextToSize(ensureValue(row.value), valueColumnWidth);
-    const contentLines = Math.max(labelLines.length, valueLines.length);
-    const height = contentLines * lineHeight + rowPadding * 2;
+    const contentHeight = Math.max(
+      labelLines.length * labelLineHeight,
+      valueLines.length * valueLineHeight
+    );
+    const height = contentHeight + rowPadding * 2;
     return { labelLines, valueLines, height };
   });
 
@@ -318,180 +327,208 @@ const drawTableCard = (doc, { title, rows, startY, margin, pageWidth }) => {
     (total, row, index) => total + row.height + (index < measurements.length - 1 ? rowSpacing : 0),
     0
   );
-  const cardHeight = cardPadding + 12 + 6 + bodyHeight + cardPadding;
+  const cardHeight = cardPadding + 18 + bodyHeight + cardPadding;
 
   doc.setDrawColor(229, 231, 235);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(margin, startY, contentWidth, cardHeight, 12, 12, "FD");
+  doc.roundedRect(startX, startY, width, cardHeight, 12, 12, "FD");
 
-  let y = startY + cardPadding;
+  let y = startY + cardPadding + 4;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setTextColor(17, 24, 39);
-  doc.text(title, margin + cardPadding, y);
-  y += 18;
+  doc.text(title, startX + cardPadding, y);
+  y += 14;
 
-  const tableX = margin + cardPadding;
+  const tableX = startX + cardPadding;
   measurements.forEach((row, index) => {
     const rowTop = y;
     const rowHeight = row.height;
 
-    doc.setDrawColor(229, 231, 235);
-    doc.setLineWidth(0.6);
-    if (index % 2 === 0) {
-      doc.setFillColor(249, 250, 251);
-    } else {
-      doc.setFillColor(255, 255, 255);
-    }
+    doc.setDrawColor(234, 236, 240);
+    doc.setLineWidth(0.4);
+    doc.setFillColor(index % 2 === 0 ? 248 : 255, 250, 252);
     doc.roundedRect(tableX, rowTop, tableWidth, rowHeight, 6, 6, "FD");
 
-    const labelX = tableX + 14;
+    const labelX = tableX + 10;
     const valueX = tableX + labelColumnWidth + columnGap;
-    const textY = rowTop + rowPadding + 12;
+    const textY = rowTop + rowPadding + labelLineHeight;
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
     row.labelLines.forEach((line, lineIndex) => {
-      doc.text(line, labelX, textY + lineIndex * lineHeight);
+      doc.text(line, labelX, textY + lineIndex * labelLineHeight);
     });
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(17, 24, 39);
     row.valueLines.forEach((line, lineIndex) => {
-      doc.text(line, valueX, textY + lineIndex * lineHeight);
+      doc.text(line, valueX, textY + lineIndex * valueLineHeight);
     });
 
     y += rowHeight + rowSpacing;
   });
 
-  return startY + cardHeight + SECTION_GAP;
+  return startY + cardHeight;
 };
 
-const drawSelectedOptionsCard = (doc, { options, startY, margin, pageWidth }) => {
+const drawSelectedOptionsCard = (doc, { options, startX, startY, width }) => {
   if (!options.length) {
     return startY;
   }
 
-  const cardPadding = 24;
-  const contentWidth = pageWidth - margin * 2;
-  const bodyWidth = contentWidth - cardPadding * 2;
-  const nameLineHeight = 16;
-  const detailLineHeight = 14;
+  const cardPadding = 18;
+  const bodyWidth = width - cardPadding * 2;
+  const nameLineHeight = 14;
+  const detailLineHeight = 12;
 
   const items = options.map((option) => {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     const nameLines = doc.splitTextToSize(ensureValue(option.name), bodyWidth);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     const detailLine = `${ensureValue(option.capacity)} · max height ${ensureValue(option.maxHeight)}`;
     const detailLines = doc.splitTextToSize(detailLine, bodyWidth);
     const height =
       nameLines.length * nameLineHeight +
-      (detailLines.length ? detailLines.length * detailLineHeight + 6 : 0) +
-      10;
+      (detailLines.length ? detailLines.length * detailLineHeight + 4 : 0) +
+      8;
     return { nameLines, detailLines, height };
   });
 
   const bodyHeight = items.reduce((total, item) => total + item.height, 0);
-  const dividersHeight = (items.length - 1) * 12;
-  const cardHeight = cardPadding + 12 + 8 + bodyHeight + dividersHeight + cardPadding;
+  const dividersHeight = (items.length - 1) * 10;
+  const cardHeight = cardPadding + 18 + bodyHeight + dividersHeight + cardPadding;
 
   doc.setDrawColor(229, 231, 235);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(margin, startY, contentWidth, cardHeight, 12, 12, "FD");
+  doc.roundedRect(startX, startY, width, cardHeight, 12, 12, "FD");
 
-  let y = startY + cardPadding;
+  let y = startY + cardPadding + 4;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setTextColor(17, 24, 39);
-  doc.text("Selected fence options", margin + cardPadding, y);
-  y += 20;
+  doc.text("Selected fence options", startX + cardPadding, y);
+  y += 16;
 
   items.forEach((item, index) => {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(17, 24, 39);
-    doc.text(item.nameLines, margin + cardPadding, y);
+    doc.text(item.nameLines, startX + cardPadding, y);
     y += item.nameLines.length * nameLineHeight;
 
     if (item.detailLines.length) {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setTextColor(75, 85, 99);
-      doc.text(item.detailLines, margin + cardPadding, y);
+      doc.text(item.detailLines, startX + cardPadding, y);
       y += item.detailLines.length * detailLineHeight;
     }
 
-    y += 10;
+    y += 8;
     if (index < items.length - 1) {
       doc.setDrawColor(229, 231, 235);
-      doc.line(margin + cardPadding, y, margin + contentWidth - cardPadding, y);
-      y += 12;
+      doc.line(startX + cardPadding, y, startX + width - cardPadding, y);
+      y += 10;
     }
   });
 
-  return startY + cardHeight + SECTION_GAP;
+  return startY + cardHeight;
 };
 
-const drawInfoCard = (doc, { items, startY, margin, pageWidth }) => {
+const drawMapCard = (doc, { mapImage, caption, startX, startY, width }) => {
+  if (!mapImage) {
+    return startY;
+  }
+
+  const cardPadding = 18;
+  const mapWidth = width - cardPadding * 2;
+  const mapSize = Math.min(mapWidth, 180);
+  const cardHeight = cardPadding + 18 + mapSize + 26 + cardPadding;
+
+  doc.setDrawColor(229, 231, 235);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(startX, startY, width, cardHeight, 12, 12, "FD");
+
+  const headingY = startY + cardPadding + 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(17, 24, 39);
+  doc.text("Site location map", startX + cardPadding, headingY);
+
+  const mapY = headingY + 10;
+  const mapX = startX + cardPadding;
+  doc.addImage(mapImage, inferImageFormat(mapImage), mapX, mapY, mapSize, mapSize);
+  doc.setDrawColor(209, 213, 219);
+  doc.roundedRect(mapX, mapY, mapSize, mapSize, 10, 10, "S");
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.text(caption, mapX, mapY + mapSize + 14);
+
+  return startY + cardHeight;
+};
+
+const drawInfoCard = (doc, { items, startX, startY, width }) => {
   if (!items.length) {
     return startY;
   }
 
-  const cardPadding = 24;
-  const contentWidth = pageWidth - margin * 2;
-  const textWidth = contentWidth - cardPadding * 2;
-  const headingLineHeight = 13;
-  const bodyLineHeight = 12;
+  const cardPadding = 18;
+  const textWidth = width - cardPadding * 2;
+  const headingLineHeight = 12;
+  const bodyLineHeight = 11;
 
   const measured = items.map((item) => {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     const headingLines = doc.splitTextToSize(ensureValue(item.heading), textWidth);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     const bodyLines = doc.splitTextToSize(ensureValue(item.text), textWidth);
     const height =
       headingLines.length * headingLineHeight +
-      (bodyLines.length ? bodyLines.length * bodyLineHeight + 10 : 0);
+      (bodyLines.length ? bodyLines.length * bodyLineHeight + 6 : 0);
     return { headingLines, bodyLines, height };
   });
 
   const bodyHeight = measured.reduce(
-    (total, item, index) => total + item.height + (index < measured.length - 1 ? 14 : 0),
+    (total, item, index) => total + item.height + (index < measured.length - 1 ? 10 : 0),
     0
   );
   const cardHeight = cardPadding + bodyHeight + cardPadding;
 
   doc.setDrawColor(229, 231, 235);
   doc.setFillColor(249, 250, 251);
-  doc.roundedRect(margin, startY, contentWidth, cardHeight, 12, 12, "FD");
+  doc.roundedRect(startX, startY, width, cardHeight, 12, 12, "FD");
 
   let y = startY + cardPadding;
   measured.forEach((item, index) => {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setTextColor(55, 65, 81);
-    doc.text(item.headingLines, margin + cardPadding, y);
+    doc.text(item.headingLines, startX + cardPadding, y);
     y += item.headingLines.length * headingLineHeight;
 
     if (item.bodyLines.length) {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setTextColor(71, 85, 105);
-      doc.text(item.bodyLines, margin + cardPadding, y);
+      doc.text(item.bodyLines, startX + cardPadding, y);
       y += item.bodyLines.length * bodyLineHeight;
     }
 
     if (index < measured.length - 1) {
-      y += 14;
+      y += 10;
     }
   });
 
-  return startY + cardHeight + SECTION_GAP;
+  return startY + cardHeight;
 };
 
 export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
@@ -508,100 +545,99 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
 
   const { meta } = payload;
 
+  const headerHeight = 104;
   doc.setDrawColor(229, 231, 235);
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(margin, margin, contentWidth, 118, 16, 16, "FD");
+  doc.roundedRect(margin, margin, contentWidth, headerHeight, 16, 16, "FD");
+
+  const headerTextX = margin + 28;
+  let headerY = margin + 40;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(17, 24, 39);
-  doc.text(meta.projectName || "Design brief", margin + 28, margin + 44);
+  doc.text(meta.projectName || "Design brief", headerTextX, headerY);
 
+  headerY += 22;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
+  doc.setFontSize(10.5);
   doc.setTextColor(75, 85, 99);
-  doc.text(`Postcode: ${meta.postcode || "–"}`, margin + 28, margin + 66);
+  doc.text(`Postcode: ${meta.postcode || "–"}`, headerTextX, headerY);
+
   if (meta.generatedLabel) {
-    doc.text(`Generated: ${meta.generatedLabel}`, margin + 28, margin + 82);
+    headerY += 16;
+    doc.text(`Generated: ${meta.generatedLabel}`, headerTextX, headerY);
   }
 
   const logoDataUrl = await getDataUrlForImage(BROWNE_LOGO_URL, createBrowneLogoFallback);
   if (logoDataUrl) {
-    const logoWidth = 132;
-    const logoHeight = 48;
+    const logoWidth = 110;
+    const logoHeight = 40;
     doc.addImage(
       logoDataUrl,
       inferImageFormat(logoDataUrl),
       pageWidth - margin - 28 - logoWidth,
-      margin + 24,
+      margin + 26,
       logoWidth,
       logoHeight
     );
   }
 
-  let y = margin + 118 + SECTION_GAP;
+  const columnWidth = (contentWidth - COLUMN_GAP) / 2;
+  const columnX = [margin, margin + columnWidth + COLUMN_GAP];
+  const initialY = margin + headerHeight + SECTION_GAP;
+  const columnHeights = [initialY, initialY];
+  const columnHasContent = [false, false];
 
-  y = drawSelectedOptionsCard(doc, {
-    options: payload.selectedOptions,
-    startY: y,
-    margin,
-    pageWidth,
-  });
+  const addCardToColumn = (index, drawCard) => {
+    if (columnHasContent[index]) {
+      columnHeights[index] += CARD_GAP;
+    }
+    columnHeights[index] = drawCard(columnHeights[index]);
+    columnHasContent[index] = true;
+  };
 
-  if (mapImage) {
-    const cardPadding = 24;
-    const mapWidth = contentWidth - cardPadding * 2;
-    const mapSize = Math.min(mapWidth, 360);
-    const cardHeight = cardPadding + 12 + 12 + mapSize + 28 + cardPadding;
-
-    doc.setDrawColor(229, 231, 235);
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(margin, y, contentWidth, cardHeight, 12, 12, "FD");
-
-    const headingY = y + cardPadding + 12;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(17, 24, 39);
-    doc.text("Site location map", margin + cardPadding, headingY);
-
-    const mapY = headingY + 12;
-    doc.addImage(
-      mapImage,
-      "PNG",
-      margin + cardPadding,
-      mapY,
-      mapSize,
-      mapSize
+  if (payload.selectedOptions.length) {
+    addCardToColumn(0, (startY) =>
+      drawSelectedOptionsCard(doc, {
+        options: payload.selectedOptions,
+        startX: columnX[0],
+        startY,
+        width: columnWidth,
+      })
     );
-    doc.setDrawColor(209, 213, 219);
-    doc.roundedRect(margin + cardPadding, mapY, mapSize, mapSize, 10, 10, "S");
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(107, 114, 128);
-    doc.text(
-      meta.postcode ? `Centered on ${meta.postcode}` : "Map capture",
-      margin + cardPadding,
-      mapY + mapSize + 18
-    );
-
-    y += cardHeight + SECTION_GAP;
   }
 
-  y = drawTableCard(doc, {
-    title: "Inputs",
-    rows: payload.inputs,
-    startY: y,
-    margin,
-    pageWidth,
-  });
+  if (mapImage) {
+    addCardToColumn(0, (startY) =>
+      drawMapCard(doc, {
+        mapImage,
+        caption: meta.postcode ? `Centered on ${meta.postcode}` : "Map capture",
+        startX: columnX[0],
+        startY,
+        width: columnWidth,
+      })
+    );
+  }
 
-  y = drawTableCard(doc, {
-    title: "Wind outputs",
-    rows: payload.outputs,
-    startY: y,
-    margin,
-    pageWidth,
-  });
+  addCardToColumn(1, (startY) =>
+    drawTableCard(doc, {
+      title: "Inputs",
+      rows: payload.inputs,
+      startX: columnX[1],
+      startY,
+      width: columnWidth,
+    })
+  );
+
+  addCardToColumn(1, (startY) =>
+    drawTableCard(doc, {
+      title: "Wind outputs",
+      rows: payload.outputs,
+      startX: columnX[1],
+      startY,
+      width: columnWidth,
+    })
+  );
 
   const infoItems = [];
   if (payload.windSource) {
@@ -611,18 +647,25 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
     infoItems.push({ heading: payload.terrain.label || "Terrain notes", text: payload.terrain.description });
   }
 
-  y = drawInfoCard(doc, {
-    items: infoItems,
-    startY: y,
-    margin,
-    pageWidth,
-  });
+  if (infoItems.length) {
+    const targetColumn = columnHeights[0] <= columnHeights[1] ? 0 : 1;
+    addCardToColumn(targetColumn, (startY) =>
+      drawInfoCard(doc, {
+        items: infoItems,
+        startX: columnX[targetColumn],
+        startY,
+        width: columnWidth,
+      })
+    );
+  }
+
+  const contentBottom = Math.max(columnHeights[0], columnHeights[1]);
 
   doc.setFont("helvetica", "italic");
   doc.setFontSize(8);
   doc.setTextColor(107, 114, 128);
   const footerLines = doc.splitTextToSize(payload.notes, contentWidth);
-  const footerY = pageHeight - margin / 2;
+  const footerY = Math.min(pageHeight - margin / 2, contentBottom + SECTION_GAP);
   doc.text(footerLines, margin, footerY);
 
   const fileName = getDesignBriefFileName(meta.projectName, meta.generatedAt);
