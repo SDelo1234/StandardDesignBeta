@@ -14,10 +14,23 @@ const loadTemplateBytes = async (templateUrl) => {
   return response.arrayBuffer();
 };
 
+const resolvePosition = (page, { xCm, yCm, fontSize = DEFAULT_FONT_SIZE, origin = "bottom-left" }) => {
+  const x = cmToPoints(xCm);
+
+  if (origin === "top-left") {
+    return {
+      x,
+      y: page.getHeight() - cmToPoints(yCm) - fontSize,
+    };
+  }
+
+  return { x, y: cmToPoints(yCm) };
+};
+
 const drawFieldsOnPage = (page, fields, font) => {
-  fields.forEach(({ text, xCm, yCm, fontSize = DEFAULT_FONT_SIZE }) => {
-    const x = cmToPoints(xCm);
-    const y = cmToPoints(yCm);
+  fields.forEach((field) => {
+    const { text, fontSize = DEFAULT_FONT_SIZE } = field;
+    const { x, y } = resolvePosition(page, field);
 
     page.drawText(text, { x, y, font, size: fontSize });
   });
@@ -67,6 +80,8 @@ export const createExampleHoardingPdfClient = async ({ postcode }) => {
       pageIndex: 0,
       xCm: 33.5,
       yCm: 3.2,
+      origin: "top-left",
+      fontSize: 14,
     });
   }
 
