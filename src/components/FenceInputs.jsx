@@ -39,7 +39,7 @@ const FenceInputs = ({
     <form className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <section className="lg:col-span-3 rounded-2xl bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-lg font-medium">Project details</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <div>
             <label className="mb-1 block text-sm font-medium">Project name</label>
             <input
@@ -51,6 +51,20 @@ const FenceInputs = ({
               onChange={(e) => onChange("projectName", e.target.value)}
             />
             {errors.projectName && <p className="mt-1 text-xs text-red-600">{errors.projectName}</p>}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Design requested by (email)</label>
+            <input
+              type="email"
+              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
+                errors.requestEmail ? "border-red-500" : "border-gray-300"
+              }`}
+              placeholder="name@example.com"
+              value={form.requestEmail}
+              onChange={(e) => onChange("requestEmail", e.target.value)}
+            />
+            {errors.requestEmail && <p className="mt-1 text-xs text-red-600">{errors.requestEmail}</p>}
+            <p className="mt-1 text-xs text-gray-500">Shown in the PDF header.</p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Project postcode</label>
