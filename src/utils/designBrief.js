@@ -9,7 +9,7 @@ import {
 } from "./formatters.js";
 import { MONTH_LABELS, getDurationLabel } from "./formOptions.js";
 
-const BROWNE_LOGO_URL = "https://browne.co.uk/wp-content/themes/browne/images/logo_footer.jpg";
+const BROWNE_LOGO_URL = "https://browne.co.uk/wp-content/themes/browne/images/logo.jpg";
 
 const FOOTER_NOTE =
   "Mock only – would download drawings and calcs with title blocks populated.";
