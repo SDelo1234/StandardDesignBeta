@@ -28,6 +28,7 @@ const parseOptionalNumber = (value) => {
 
 const initialForm = {
   projectName: "",
+  requestEmail: "",
   postcode: "",
   installationMonth: null,
   durationCategory: null,
@@ -105,6 +106,14 @@ const FencesPage = () => {
     if (key === "projectName") {
       return value.trim() ? "" : "Project name is required.";
     }
+    if (key === "requestEmail") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return "Contact email is required.";
+      }
+      const emailPattern = /^[\w.!#$%&'*+/=?`{|}~-]+@[\w-]+(?:\.[\w-]+)+$/;
+      return emailPattern.test(trimmed) ? "" : "Enter a valid email address.";
+    }
     if (key === "postcode") {
       return postcodeRegex.test(value.trim()) ? "" : "Enter a valid UK postcode (e.g., SW4 6QD).";
     }
@@ -162,6 +171,20 @@ const FencesPage = () => {
     if (disabled) return;
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   }, []);
+
+  const ensureEmailValid = useCallback(() => {
+    const message = validateField("requestEmail", form.requestEmail || "");
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (message) {
+        next.requestEmail = message;
+      } else {
+        delete next.requestEmail;
+      }
+      return next;
+    });
+    return !message;
+  }, [form.requestEmail, validateField]);
 
   const handleExportDesignBrief = useCallback(
     async (payload) => {
@@ -365,6 +388,7 @@ const FencesPage = () => {
             form={form}
             onExportBrief={handleExportDesignBrief}
             exporting={exportingBrief}
+            onValidateBeforeExport={ensureEmailValid}
           />
         </section>
       )}

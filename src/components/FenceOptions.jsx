@@ -10,6 +10,7 @@ const FenceOptions = ({
   form,
   onExportBrief,
   exporting,
+  onValidateBeforeExport,
 }) => {
   const optionDisabled = useCallback(
     (option) => {
@@ -23,6 +24,7 @@ const FenceOptions = ({
 
   const handleSendBrief = useCallback(async () => {
     if (!onExportBrief || selected.length === 0 || !wind) return;
+    if (onValidateBeforeExport && !onValidateBeforeExport()) return;
     const payload = createDesignBriefPayload({
       form,
       wind,
@@ -30,7 +32,7 @@ const FenceOptions = ({
       selectedIds: selected,
     });
     await onExportBrief(payload);
-  }, [form, onExportBrief, options, selected, wind]);
+  }, [form, onExportBrief, onValidateBeforeExport, options, selected, wind]);
 
   const baseButtonClasses =
     "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--mwp-navy)]";

@@ -24,36 +24,7 @@ const ensureValue = (value) => (value === null || value === undefined || value =
 
 const logoDataUrlCache = {};
 
-const createBrowneLogoFallback = () => {
-  if (logoDataUrlCache.__browneFallback) {
-    return logoDataUrlCache.__browneFallback;
-  }
-
-  if (typeof document === "undefined") return null;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = 600;
-  canvas.height = 200;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "#003A5D";
-  ctx.font = "bold 120px 'Helvetica Neue', Arial, sans-serif";
-  ctx.textBaseline = "middle";
-  ctx.fillText("BROWNE", 30, canvas.height / 2 + 10);
-
-  ctx.fillStyle = "#8DC63F";
-  ctx.fillRect(32, canvas.height - 48, 220, 14);
-
-  const dataUrl = canvas.toDataURL("image/png");
-  logoDataUrlCache.__browneFallback = dataUrl;
-  return dataUrl;
-};
-
-const getDataUrlForImage = async (url, fallbackFactory) => {
+const getDataUrlForImage = async (url) => {
   if (url && logoDataUrlCache[url]) {
     return logoDataUrlCache[url];
   }
@@ -74,16 +45,6 @@ const getDataUrlForImage = async (url, fallbackFactory) => {
       return dataUrl;
     } catch (error) {
       console.error("Failed to load image for PDF", error);
-    }
-  }
-
-  if (fallbackFactory) {
-    const fallback = await fallbackFactory();
-    if (fallback) {
-      if (url) {
-        logoDataUrlCache[url] = fallback;
-      }
-      return fallback;
     }
   }
 
@@ -273,6 +234,7 @@ export const createDesignBriefPayload = ({
     postcode: formatPostcode((form.postcode || "").trim()),
     generatedAt: currentDate,
     generatedLabel: formatDateLabel(currentDate),
+    requestedBy: (form.requestEmail || "").trim(),
   };
 
   return {
@@ -293,9 +255,9 @@ const SECTION_GAP = 24;
 const CARD_GAP = 18;
 const COLUMN_GAP = 24;
 
-const drawTableCard = (doc, { title, rows, startX, startY, width }) => {
+const measureTableCardHeight = (doc, { rows, width }) => {
   if (!rows.length) {
-    return startY;
+    return { cardHeight: 0, measurements: [] };
   }
 
   const cardPadding = 18;
@@ -328,6 +290,37 @@ const drawTableCard = (doc, { title, rows, startX, startY, width }) => {
     0
   );
   const cardHeight = cardPadding + 18 + bodyHeight + cardPadding;
+
+  return {
+    cardHeight,
+    measurements,
+    tableWidth,
+    labelColumnWidth,
+    columnGap,
+    valueColumnWidth,
+    rowPadding,
+  };
+};
+
+const drawTableCard = (doc, { title, rows, startX, startY, width, minHeight = 0 }) => {
+  if (!rows.length) {
+    return startY;
+  }
+
+  const {
+    cardHeight: measuredHeight,
+    measurements,
+    tableWidth,
+    labelColumnWidth,
+    columnGap,
+    valueColumnWidth,
+    rowPadding,
+  } = measureTableCardHeight(doc, { rows, width });
+  const cardHeight = Math.max(measuredHeight, minHeight);
+  const cardPadding = 18;
+  const valueLineHeight = 13;
+  const labelLineHeight = 11;
+  const rowSpacing = 4;
 
   doc.setDrawColor(229, 231, 235);
   doc.setFillColor(255, 255, 255);
@@ -368,7 +361,132 @@ const drawTableCard = (doc, { title, rows, startX, startY, width }) => {
       doc.text(line, valueX, textY + lineIndex * valueLineHeight);
     });
 
-    y += rowHeight + rowSpacing;
+    y += rowHeight;
+    if (index < measurements.length - 1) {
+      y += rowSpacing;
+    }
+  });
+
+  return startY + cardHeight;
+};
+
+const measureWindOutputs = (doc, { rows, width }) => {
+  if (!rows.length) {
+    return {
+      cardHeight: 0,
+      columnMeasurements: [[], []],
+      cardPadding: 18,
+      columnWidth: 0,
+      columnGap: 14,
+    };
+  }
+
+  const cardPadding = 18;
+  const contentWidth = width - cardPadding * 2;
+  const columnGap = 16;
+  const columnWidth = (contentWidth - columnGap) / 2;
+  const rowPadding = 6;
+  const labelLineHeight = 11;
+  const valueLineHeight = 13;
+  const rowSpacing = 4;
+
+  const splitIndex = Math.ceil(rows.length / 2);
+  const columns = [rows.slice(0, splitIndex), rows.slice(splitIndex)];
+
+  const columnMeasurements = columns.map((columnRows) => {
+    const measurements = columnRows.map((row) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      const labelLines = doc.splitTextToSize(ensureValue(row.label), columnWidth - 20);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const valueLines = doc.splitTextToSize(ensureValue(row.value), columnWidth - 20);
+      const labelHeight = labelLines.length * labelLineHeight;
+      const valueHeight = valueLines.length * valueLineHeight;
+      const contentHeight = labelHeight + valueHeight + 2;
+      const height = contentHeight + rowPadding * 2;
+      return { labelLines, valueLines, height, labelHeight, valueHeight };
+    });
+
+    const bodyHeight = measurements.reduce(
+      (total, row, index) => total + row.height + (index < measurements.length - 1 ? rowSpacing : 0),
+      0
+    );
+    return { measurements, bodyHeight };
+  });
+
+  const tallestColumnHeight = Math.max(columnMeasurements[0].bodyHeight, columnMeasurements[1].bodyHeight);
+  const cardHeight = cardPadding + 18 + tallestColumnHeight + cardPadding;
+
+  return { cardHeight, columnMeasurements, cardPadding, columnWidth, columnGap, rowPadding };
+};
+
+const drawWindOutputsCard = (doc, { rows, startX, startY, width, minHeight = 0 }) => {
+  if (!rows.length) {
+    return startY;
+  }
+
+  const {
+    cardHeight: measuredHeight,
+    columnMeasurements,
+    cardPadding,
+    columnWidth,
+    columnGap,
+    rowPadding,
+  } = measureWindOutputs(doc, { rows, width });
+  const cardHeight = Math.max(measuredHeight, minHeight);
+  const labelLineHeight = 11;
+  const valueLineHeight = 13;
+  const rowSpacing = 4;
+
+  doc.setDrawColor(229, 231, 235);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(startX, startY, width, cardHeight, 12, 12, "FD");
+
+  let y = startY + cardPadding + 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(17, 24, 39);
+  doc.text("Wind outputs", startX + cardPadding, y);
+  y += 10;
+
+  const columnXs = [startX + cardPadding, startX + cardPadding + columnWidth + columnGap];
+
+  columnMeasurements.forEach((column, columnIndex) => {
+    let rowY = y + 6;
+    column.measurements.forEach((row, rowIndex) => {
+      const rowTop = rowY;
+      const rowHeight = row.height;
+
+      doc.setDrawColor(234, 236, 240);
+      doc.setLineWidth(0.4);
+      doc.setFillColor(rowIndex % 2 === 0 ? 248 : 255, 250, 252);
+      doc.roundedRect(columnXs[columnIndex], rowTop, columnWidth, rowHeight, 6, 6, "FD");
+
+      const labelX = columnXs[columnIndex] + 10;
+      const valueX = columnXs[columnIndex] + 10;
+      const labelY = rowTop + rowPadding + labelLineHeight;
+      const valueStartY = labelY + row.labelHeight + 2;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      row.labelLines.forEach((line, lineIndex) => {
+        doc.text(line, labelX, labelY + lineIndex * labelLineHeight);
+      });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(17, 24, 39);
+      row.valueLines.forEach((line, lineIndex) => {
+        doc.text(line, valueX, valueStartY + lineIndex * valueLineHeight);
+      });
+
+      rowY += rowHeight;
+      if (rowIndex < column.measurements.length - 1) {
+        rowY += rowSpacing;
+      }
+    });
   });
 
   return startY + cardHeight;
@@ -440,7 +558,14 @@ const drawSelectedOptionsCard = (doc, { options, startX, startY, width }) => {
   return startY + cardHeight;
 };
 
-const drawMapCard = (doc, { mapImage, caption, startX, startY, width }) => {
+const getMapCardHeight = (width) => {
+  const cardPadding = 18;
+  const mapWidth = width - cardPadding * 2;
+  const mapSize = Math.min(mapWidth, 180);
+  return cardPadding + 18 + mapSize + 26 + cardPadding;
+};
+
+const drawMapCard = (doc, { mapImage, caption, startX, startY, width, minHeight = 0 }) => {
   if (!mapImage) {
     return startY;
   }
@@ -448,7 +573,9 @@ const drawMapCard = (doc, { mapImage, caption, startX, startY, width }) => {
   const cardPadding = 18;
   const mapWidth = width - cardPadding * 2;
   const mapSize = Math.min(mapWidth, 180);
-  const cardHeight = cardPadding + 18 + mapSize + 26 + cardPadding;
+  const baseHeight = getMapCardHeight(width);
+  const cardHeight = Math.max(baseHeight, minHeight);
+  const extraSpace = cardHeight - baseHeight;
 
   doc.setDrawColor(229, 231, 235);
   doc.setFillColor(255, 255, 255);
@@ -469,7 +596,7 @@ const drawMapCard = (doc, { mapImage, caption, startX, startY, width }) => {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(107, 114, 128);
-  doc.text(caption, mapX, mapY + mapSize + 14);
+  doc.text(caption, mapX, mapY + mapSize + 14 + extraSpace);
 
   return startY + cardHeight;
 };
@@ -568,18 +695,21 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
     doc.text(`Generated: ${meta.generatedLabel}`, headerTextX, headerY);
   }
 
-  const logoDataUrl = await getDataUrlForImage(BROWNE_LOGO_URL, createBrowneLogoFallback);
+  headerY += 16;
+  doc.text(`Design requested by: ${ensureValue(meta.requestedBy)}`, headerTextX, headerY);
+
+  const logoWidth = 110;
+  const logoHeight = 40;
+  const logoX = pageWidth - margin - 28 - logoWidth;
+  const logoY = margin + 26;
+  const logoDataUrl = await getDataUrlForImage(BROWNE_LOGO_URL);
   if (logoDataUrl) {
-    const logoWidth = 110;
-    const logoHeight = 40;
-    doc.addImage(
-      logoDataUrl,
-      inferImageFormat(logoDataUrl),
-      pageWidth - margin - 28 - logoWidth,
-      margin + 26,
-      logoWidth,
-      logoHeight
-    );
+    doc.addImage(logoDataUrl, inferImageFormat(logoDataUrl), logoX, logoY, logoWidth, logoHeight);
+  } else {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(17, 24, 39);
+    doc.text("BROWNE", logoX, logoY + logoHeight / 2 + 6);
   }
 
   const columnWidth = (contentWidth - COLUMN_GAP) / 2;
@@ -595,6 +725,10 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
     columnHeights[index] = drawCard(columnHeights[index]);
     columnHasContent[index] = true;
   };
+
+  const inputsHeight = measureTableCardHeight(doc, { rows: payload.inputs, width: columnWidth }).cardHeight;
+  const mapHeight = mapImage ? getMapCardHeight(columnWidth) : 0;
+  const pairedHeight = Math.max(inputsHeight, mapHeight);
 
   if (payload.selectedOptions.length) {
     addCardToColumn(0, (startY) =>
@@ -615,6 +749,7 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
         startX: columnX[0],
         startY,
         width: columnWidth,
+        minHeight: pairedHeight,
       })
     );
   }
@@ -626,38 +761,18 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
       startX: columnX[1],
       startY,
       width: columnWidth,
+      minHeight: pairedHeight,
     })
   );
 
   addCardToColumn(1, (startY) =>
-    drawTableCard(doc, {
-      title: "Wind outputs",
+    drawWindOutputsCard(doc, {
       rows: payload.outputs,
       startX: columnX[1],
       startY,
       width: columnWidth,
     })
   );
-
-  const infoItems = [];
-  if (payload.windSource) {
-    infoItems.push({ heading: "Wind data source", text: payload.windSource });
-  }
-  if (payload.terrain.description) {
-    infoItems.push({ heading: payload.terrain.label || "Terrain notes", text: payload.terrain.description });
-  }
-
-  if (infoItems.length) {
-    const targetColumn = columnHeights[0] <= columnHeights[1] ? 0 : 1;
-    addCardToColumn(targetColumn, (startY) =>
-      drawInfoCard(doc, {
-        items: infoItems,
-        startX: columnX[targetColumn],
-        startY,
-        width: columnWidth,
-      })
-    );
-  }
 
   const contentBottom = Math.max(columnHeights[0], columnHeights[1]);
 
