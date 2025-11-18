@@ -9,7 +9,7 @@ import {
 } from "./formatters.js";
 import { MONTH_LABELS, getDurationLabel } from "./formOptions.js";
 
-const BROWNE_LOGO_URL = "https://browne.co.uk/wp-content/themes/browne/images/logo_footer.jpg";
+const BROWNE_LOGO_URL = "https://browne.co.uk/wp-content/themes/browne/images/logo.jpg";
 
 const FOOTER_NOTE =
   "Mock only – would download drawings and calcs with title blocks populated.";
@@ -24,36 +24,7 @@ const ensureValue = (value) => (value === null || value === undefined || value =
 
 const logoDataUrlCache = {};
 
-const createBrowneLogoFallback = () => {
-  if (logoDataUrlCache.__browneFallback) {
-    return logoDataUrlCache.__browneFallback;
-  }
-
-  if (typeof document === "undefined") return null;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = 600;
-  canvas.height = 200;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "#003A5D";
-  ctx.font = "bold 120px 'Helvetica Neue', Arial, sans-serif";
-  ctx.textBaseline = "middle";
-  ctx.fillText("BROWNE", 30, canvas.height / 2 + 10);
-
-  ctx.fillStyle = "#8DC63F";
-  ctx.fillRect(32, canvas.height - 48, 220, 14);
-
-  const dataUrl = canvas.toDataURL("image/png");
-  logoDataUrlCache.__browneFallback = dataUrl;
-  return dataUrl;
-};
-
-const getDataUrlForImage = async (url, fallbackFactory) => {
+const getDataUrlForImage = async (url) => {
   if (url && logoDataUrlCache[url]) {
     return logoDataUrlCache[url];
   }
@@ -74,16 +45,6 @@ const getDataUrlForImage = async (url, fallbackFactory) => {
       return dataUrl;
     } catch (error) {
       console.error("Failed to load image for PDF", error);
-    }
-  }
-
-  if (fallbackFactory) {
-    const fallback = await fallbackFactory();
-    if (fallback) {
-      if (url) {
-        logoDataUrlCache[url] = fallback;
-      }
-      return fallback;
     }
   }
 
@@ -737,18 +698,18 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
   headerY += 16;
   doc.text(`Design requested by: ${ensureValue(meta.requestedBy)}`, headerTextX, headerY);
 
-  const logoDataUrl = await getDataUrlForImage(BROWNE_LOGO_URL, createBrowneLogoFallback);
+  const logoWidth = 110;
+  const logoHeight = 40;
+  const logoX = pageWidth - margin - 28 - logoWidth;
+  const logoY = margin + 26;
+  const logoDataUrl = await getDataUrlForImage(BROWNE_LOGO_URL);
   if (logoDataUrl) {
-    const logoWidth = 110;
-    const logoHeight = 40;
-    doc.addImage(
-      logoDataUrl,
-      inferImageFormat(logoDataUrl),
-      pageWidth - margin - 28 - logoWidth,
-      margin + 26,
-      logoWidth,
-      logoHeight
-    );
+    doc.addImage(logoDataUrl, inferImageFormat(logoDataUrl), logoX, logoY, logoWidth, logoHeight);
+  } else {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(17, 24, 39);
+    doc.text("BROWNE", logoX, logoY + logoHeight / 2 + 6);
   }
 
   const columnWidth = (contentWidth - COLUMN_GAP) / 2;
