@@ -16,17 +16,28 @@ export const DEFAULT_TEMPLATE_PATH = path.resolve(
 
 const cmToPoints = (centimetres) => centimetres * CM_TO_POINTS;
 
-const resolvePosition = (page, { xCm, yCm, fontSize = DEFAULT_FONT_SIZE, origin = 'bottom-left' }) => {
-  const x = cmToPoints(xCm);
+const resolvePosition = (
+  page,
+  { x, y, xCm, yCm, fontSize = DEFAULT_FONT_SIZE, origin = 'bottom-left' },
+) => {
+  if (typeof x === 'number' && typeof y === 'number') {
+    return { x, y };
+  }
+
+  if (typeof xCm !== 'number' || typeof yCm !== 'number') {
+    throw new Error('Field is missing coordinates (x/y or xCm/yCm)');
+  }
+
+  const xPoint = cmToPoints(xCm);
 
   if (origin === 'top-left') {
     return {
-      x,
+      x: xPoint,
       y: page.getHeight() - cmToPoints(yCm) - fontSize,
     };
   }
 
-  return { x, y: cmToPoints(yCm) };
+  return { x: xPoint, y: cmToPoints(yCm) };
 };
 
 const drawFieldsOnPage = (page, fields, font) => {
@@ -81,9 +92,8 @@ export const createExampleHoardingPdf = async ({ postcode }) => {
     fields.push({
       text: postcode,
       pageIndex: 0,
-      xCm: 33.5,
-      yCm: 3.2,
-      origin: 'top-left',
+      x: 979,
+      y: 77,
       fontSize: 14,
     });
   }
