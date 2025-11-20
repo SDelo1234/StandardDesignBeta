@@ -36,55 +36,59 @@ const FenceInputs = ({
   const usingAltitude = formatAltitudeValue(effectiveAltitude);
 
   return (
-    <form className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <section className="lg:col-span-3 rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-medium">Project details</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Project name</label>
+    <form className="space-y-6">
+      {/* Project Essentials Card */}
+      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 lg:p-8">
+        <h2 className="mb-6 text-xl font-semibold text-[var(--mwp-navy)]">Project Essentials</h2>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className="mb-2 block text-sm font-medium text-gray-700">Project name</label>
             <input
-              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
-                errors.projectName ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`w-full rounded-xl border p-3 text-base shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20 ${errors.projectName ? "border-red-500 focus:border-red-500" : "border-gray-200 focus:border-[var(--mwp-navy)]"
+                }`}
               placeholder="e.g., Longreach STW – Perimeter"
               value={form.projectName}
               onChange={(e) => onChange("projectName", e.target.value)}
             />
-            {errors.projectName && <p className="mt-1 text-xs text-red-600">{errors.projectName}</p>}
+            {errors.projectName && <p className="mt-1.5 text-sm text-red-600">{errors.projectName}</p>}
           </div>
+
           <div>
-            <label className="mb-1 block text-sm font-medium">Design requested by (email)</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Design requested by (email)</label>
             <input
               type="email"
-              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
-                errors.requestEmail ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`w-full rounded-xl border p-3 text-base shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20 ${errors.requestEmail ? "border-red-500 focus:border-red-500" : "border-gray-200 focus:border-[var(--mwp-navy)]"
+                }`}
               placeholder="name@example.com"
               value={form.requestEmail}
               onChange={(e) => onChange("requestEmail", e.target.value)}
             />
-            {errors.requestEmail && <p className="mt-1 text-xs text-red-600">{errors.requestEmail}</p>}
-            <p className="mt-1 text-xs text-gray-500">Shown in the PDF header.</p>
+            {errors.requestEmail && <p className="mt-1.5 text-sm text-red-600">{errors.requestEmail}</p>}
           </div>
+
           <div>
-            <label className="mb-1 block text-sm font-medium">Project postcode</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Project postcode</label>
             <input
-              className={`w-full rounded-xl border p-2.5 uppercase focus:outline-none focus:ring ${
-                errors.postcode ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`w-full rounded-xl border p-3 text-base uppercase shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20 ${errors.postcode ? "border-red-500 focus:border-red-500" : "border-gray-200 focus:border-[var(--mwp-navy)]"
+                }`}
               placeholder="SW4 6QD"
               value={form.postcode}
               onChange={(e) => onChange("postcode", e.target.value.toUpperCase())}
             />
-            {errors.postcode && <p className="mt-1 text-xs text-red-600">{errors.postcode}</p>}
-            <p className="mt-1 text-xs text-gray-500">Used to derive site wind data.</p>
+            {errors.postcode && <p className="mt-1.5 text-sm text-red-600">{errors.postcode}</p>}
           </div>
+        </div>
+      </section>
+
+      {/* Schedule & Logistics Card */}
+      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 lg:p-8">
+        <h2 className="mb-6 text-xl font-semibold text-[var(--mwp-navy)]">Schedule & Logistics</h2>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium">Month installed</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Month installed</label>
             <select
-              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
-                errors.installationMonth ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`w-full rounded-xl border p-3 text-base shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20 ${errors.installationMonth ? "border-red-500 focus:border-red-500" : "border-gray-200 focus:border-[var(--mwp-navy)]"
+                }`}
               value={form.installationMonth ?? ""}
               onChange={(e) =>
                 onChange(
@@ -101,15 +105,15 @@ const FenceInputs = ({
               ))}
             </select>
             {errors.installationMonth && (
-              <p className="mt-1 text-xs text-red-600">{errors.installationMonth}</p>
+              <p className="mt-1.5 text-sm text-red-600">{errors.installationMonth}</p>
             )}
           </div>
+
           <div>
-            <label className="mb-1 block text-sm font-medium">Expected duration on site</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Expected duration</label>
             <select
-              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
-                errors.durationCategory ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`w-full rounded-xl border p-3 text-base shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20 ${errors.durationCategory ? "border-red-500 focus:border-red-500" : "border-gray-200 focus:border-[var(--mwp-navy)]"
+                }`}
               value={form.durationCategory ?? ""}
               onChange={(e) =>
                 onChange("durationCategory", e.target.value || null)
@@ -123,19 +127,20 @@ const FenceInputs = ({
               ))}
             </select>
             {errors.durationCategory && (
-              <p className="mt-1 text-xs text-red-600">{errors.durationCategory}</p>
+              <p className="mt-1.5 text-sm text-red-600">{errors.durationCategory}</p>
             )}
           </div>
         </div>
       </section>
 
-      <section className="lg:col-span-3 rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-medium">Site conditions</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="lg:col-span-1">
-            <label className="mb-1 block text-sm font-medium">Ground conditions</label>
+      {/* Site Conditions Card */}
+      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 lg:p-8">
+        <h2 className="mb-6 text-xl font-semibold text-[var(--mwp-navy)]">Site Conditions</h2>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Ground conditions</label>
             <select
-              className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring"
+              className="w-full rounded-xl border border-gray-200 p-3 text-base shadow-sm transition-colors focus:border-[var(--mwp-navy)] focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20"
               value={form.ground}
               onChange={(e) => onChange("ground", e.target.value)}
             >
@@ -145,66 +150,11 @@ const FenceInputs = ({
               <option>Unknown – assume worst case</option>
             </select>
           </div>
-          <div className="md:col-span-2 lg:col-span-4">
-            <TerrainCategorySelector
-              value={form.terrainCategory}
-              onChange={onTerrainChange}
-              error={errors.terrainCategory}
-            />
-          </div>
-          <div className="lg:col-span-1">
-            <label className="mb-1 block text-sm font-medium">Distance to sea</label>
-            <input
-              className="w-full rounded-xl border p-2.5 focus:outline-none focus:ring"
-              placeholder="km"
-              value={form.distanceToSea}
-              onChange={(e) => onChange("distanceToSea", e.target.value)}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Need help? Use the
-              {" "}
-              <a
-                href="https://www.doogal.co.uk/DistanceToSea"
-                className="font-medium text-[var(--mwp-navy)] underline"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                Doogal distance to sea calculator
-              </a>
-              {" "}
-              and enter the result here.
-            </p>
-          </div>
-          <div className="md:col-span-2 lg:col-span-2">
-            <label className="mb-1 block text-sm font-medium">Altitude (dataset)</label>
-            <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
-              {renderAltitudeStatus()}
-            </div>
-            {altitudeMatch && (
-              <p className="mt-1 text-xs text-gray-500">
-                Matched dataset entry: {formatPostcode(altitudeMatch)}
-              </p>
-            )}
-            <label className="mt-4 mb-1 block text-sm font-medium">Manual altitude override</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              className="w-full rounded-xl border p-2.5 focus:outline-none focus:ring"
-              placeholder="m AOD"
-              value={altitudeOverride}
-              onChange={(e) => onAltitudeOverrideChange(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              {usingAltitude
-                ? `Using ${usingAltitude}${altitudeStatus === "error" ? " (manual value)" : ""}`
-                : "Leave blank to use the dataset value or enter a manual altitude."}
-            </p>
-          </div>
-          <div className="lg:col-span-1">
-            <label className="mb-1 block text-sm font-medium">Fence height</label>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Fence height</label>
             <select
-              className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring"
+              className="w-full rounded-xl border border-gray-200 p-3 text-base shadow-sm transition-colors focus:border-[var(--mwp-navy)] focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20"
               value={form.height}
               onChange={(e) => onChange("height", e.target.value)}
             >
@@ -212,6 +162,73 @@ const FenceInputs = ({
               <option>2.4 m</option>
               <option>3.0 m</option>
             </select>
+          </div>
+
+          <div className="md:col-span-2">
+            <TerrainCategorySelector
+              value={form.terrainCategory}
+              onChange={onTerrainChange}
+              error={errors.terrainCategory}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Distance to sea</label>
+            <div className="relative">
+              <input
+                className="w-full rounded-xl border border-gray-200 p-3 text-base shadow-sm transition-colors focus:border-[var(--mwp-navy)] focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20"
+                placeholder="e.g. 5.2"
+                value={form.distanceToSea}
+                onChange={(e) => onChange("distanceToSea", e.target.value)}
+              />
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <span className="text-gray-500">km</span>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Use{" "}
+              <a
+                href="https://www.doogal.co.uk/DistanceToSea"
+                className="font-medium text-[var(--mwp-navy)] hover:underline"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                Doogal distance to sea
+              </a>
+              {" "}if unsure.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Altitude (dataset)</label>
+            <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-base text-[var(--mwp-navy)]">
+              {renderAltitudeStatus()}
+            </div>
+            {altitudeMatch && (
+              <p className="mt-1.5 text-xs text-gray-500">
+                Matched: {formatPostcode(altitudeMatch)}
+              </p>
+            )}
+
+            <div className="mt-4">
+              <label className="mb-2 block text-sm font-medium text-gray-700">Manual override</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  className="w-full rounded-xl border border-gray-200 p-3 text-base shadow-sm transition-colors focus:border-[var(--mwp-navy)] focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]/20"
+                  placeholder="m AOD"
+                  value={altitudeOverride}
+                  onChange={(e) => onAltitudeOverrideChange(e.target.value)}
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500">
+                {usingAltitude
+                  ? `Using ${usingAltitude}${altitudeStatus === "error" ? " (manual)" : ""}`
+                  : "Leave blank to use dataset."}
+              </p>
+            </div>
           </div>
         </div>
       </section>

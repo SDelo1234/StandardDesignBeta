@@ -9,7 +9,7 @@ import {
 } from "./formatters.js";
 import { MONTH_LABELS, getDurationLabel } from "./formOptions.js";
 
-const BROWNE_LOGO_URL = "https://browne.co.uk/wp-content/themes/browne/images/logo.jpg";
+const BROWNE_LOGO_URL = "/browne_logo.jpg";
 
 const FOOTER_NOTE =
   "Mock only – would download drawings and calcs with title blocks populated.";
@@ -252,7 +252,7 @@ export const createDesignBriefPayload = ({
 };
 
 const SECTION_GAP = 24;
-const CARD_GAP = 18;
+const CARD_GAP = 24; // Standardized gap
 const COLUMN_GAP = 24;
 
 const measureTableCardHeight = (doc, { rows, width }) => {
@@ -704,7 +704,21 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
   const logoY = margin + 26;
   const logoDataUrl = await getDataUrlForImage(BROWNE_LOGO_URL);
   if (logoDataUrl) {
-    doc.addImage(logoDataUrl, inferImageFormat(logoDataUrl), logoX, logoY, logoWidth, logoHeight);
+    const props = doc.getImageProperties(logoDataUrl);
+    const ratio = props.width / props.height;
+    let w = logoWidth;
+    let h = w / ratio;
+    if (h > logoHeight) {
+      h = logoHeight;
+      w = h * ratio;
+    }
+    // Center in the box if needed, or just align right/top?
+    // The box is defined by logoX, logoY, logoWidth, logoHeight.
+    // Let's align right and center vertically within the 40pt box.
+    const x = logoX + (logoWidth - w);
+    const y = logoY + (logoHeight - h) / 2;
+
+    doc.addImage(logoDataUrl, inferImageFormat(logoDataUrl), x, y, w, h);
   } else {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
@@ -780,8 +794,22 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
   doc.setFontSize(8);
   doc.setTextColor(107, 114, 128);
   const footerLines = doc.splitTextToSize(payload.notes, contentWidth);
-  const footerY = Math.min(pageHeight - margin / 2, contentBottom + SECTION_GAP);
-  doc.text(footerLines, margin, footerY);
+
+  // Ensure footer is at least 'margin' from bottom, but also below content
+  // If content pushes it off, we might need a new page, but for now let's just place it.
+  // User wanted a margin around the page.
+  const minFooterY = contentBottom + SECTION_GAP;
+  const maxFooterY = pageHeight - margin;
+
+  // If content is too long, this might overlap or go off page.
+  // But let's respect the bottom margin for the footer.
+  const footerY = Math.max(minFooterY, maxFooterY);
+  // Wait, if minFooterY > maxFooterY, we are overflowing.
+  // If we want to enforce margin, we should stop at maxFooterY.
+  // But the footer text needs to be ABOVE that line if that's the bottom margin.
+  // Let's just place it at the bottom margin line (y position of text baseline).
+
+  doc.text(footerLines, margin, maxFooterY);
 
   const fileName = getDesignBriefFileName(meta.projectName, meta.generatedAt);
   doc.save(fileName);

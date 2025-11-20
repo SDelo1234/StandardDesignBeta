@@ -310,8 +310,8 @@ const FencesPage = () => {
     const baseSpeed = Number.isFinite(wind.vb_map)
       ? wind.vb_map
       : Number.isFinite(wind.speed_ms)
-      ? wind.speed_ms
-      : null;
+        ? wind.speed_ms
+        : null;
 
     if (!Number.isFinite(baseSpeed) || baseSpeed === null) {
       return null;
@@ -354,44 +354,56 @@ const FencesPage = () => {
   }, [wind, derivedFactors, windInputs]);
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold">Site-Specific Heras Fencing – Quick Setup</h1>
-        <p className="text-sm text-gray-600">
-          Enter basic details to generate site-specific designs and a calculation pack.
-        </p>
+    <div className="mx-auto max-w-7xl p-6 lg:p-8">
+      <header className="mb-10 flex flex-col gap-6 border-b border-gray-200 pb-8 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-[var(--mwp-navy)]">Site-Specific Heras Fencing</h1>
+          <p className="mt-2 text-lg text-gray-600">
+            Enter basic details to generate site-specific designs and a calculation pack.
+          </p>
+        </div>
+        <img src="/mwp_logo.png" alt="MWP Engineering" className="h-16 w-auto object-contain" />
       </header>
 
-      <Map ref={mapRef} postcode={form.postcode} onPostcodeChange={(value) => updateField("postcode", value)} />
-      <FenceInputs
-        form={form}
-        errors={errors}
-        onChange={updateField}
-        autoAltitude={autoAltitude}
-        altitudeStatus={lookupStatus}
-        altitudeOverride={form.altitudeOverride}
-        onAltitudeOverrideChange={(value) => updateField("altitudeOverride", value)}
-        effectiveAltitude={effectiveAltitude}
-        altitudeMatch={datasetSources.altitude}
-        onTerrainChange={handleTerrainCategoryChange}
-      />
-
-      {windWithTerrain && (
-        <section className="mt-8 space-y-6">
-          <WindResults wind={windWithTerrain} />
-          <FenceOptions
-            options={options}
-            selected={selected}
-            wind={windWithTerrain}
-            requiredHeight={requiredHeight}
-            onToggle={handleToggle}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start">
+        {/* Left Column: Inputs & Results */}
+        <div className="space-y-8 lg:col-span-7 xl:col-span-8">
+          <FenceInputs
             form={form}
-            onExportBrief={handleExportDesignBrief}
-            exporting={exportingBrief}
-            onValidateBeforeExport={ensureEmailValid}
+            errors={errors}
+            onChange={updateField}
+            autoAltitude={autoAltitude}
+            altitudeStatus={lookupStatus}
+            altitudeOverride={form.altitudeOverride}
+            onAltitudeOverrideChange={(value) => updateField("altitudeOverride", value)}
+            effectiveAltitude={effectiveAltitude}
+            altitudeMatch={datasetSources.altitude}
+            onTerrainChange={handleTerrainCategoryChange}
           />
-        </section>
-      )}
+
+          {windWithTerrain && (
+            <div className="space-y-8">
+              <WindResults wind={windWithTerrain} />
+              <FenceOptions
+                options={options}
+                selected={selected}
+                wind={windWithTerrain}
+                requiredHeight={requiredHeight}
+                onToggle={handleToggle}
+                form={form}
+                onExportBrief={handleExportDesignBrief}
+                exporting={exportingBrief}
+                onValidateBeforeExport={ensureEmailValid}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Sticky Map */}
+        <div className="lg:col-span-5 lg:sticky lg:top-6 xl:col-span-4">
+          <Map ref={mapRef} postcode={form.postcode} onPostcodeChange={(value) => updateField("postcode", value)} />
+        </div>
+      </div>
     </div>
   );
 };
