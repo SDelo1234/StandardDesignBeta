@@ -15,6 +15,9 @@ const FenceInputs = ({
   effectiveAltitude,
   altitudeMatch,
   onTerrainChange,
+  autoDistance,
+  distanceOverride,
+  onDistanceOverrideChange,
 }) => {
   const renderAltitudeStatus = () => {
     if (altitudeStatus === "loading") {
@@ -153,26 +156,30 @@ const FenceInputs = ({
             />
           </div>
           <div className="lg:col-span-1">
-            <label className="mb-1 block text-sm font-medium">Distance to sea</label>
+            <label className="mb-1 block text-sm font-medium">Distance to sea (auto)</label>
+            <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
+              {autoDistance !== null
+                ? `${autoDistance} km`
+                : form.postcode.trim()
+                ? "Locating…"
+                : "Enter a postcode to calculate."}
+            </div>
+            <label className="mt-4 mb-1 block text-sm font-medium">Manual override</label>
             <input
+              type="number"
+              inputMode="decimal"
+              step="0.1"
               className="w-full rounded-xl border p-2.5 focus:outline-none focus:ring"
               placeholder="km"
-              value={form.distanceToSea}
-              onChange={(e) => onChange("distanceToSea", e.target.value)}
+              value={distanceOverride}
+              onChange={(e) => onDistanceOverrideChange(e.target.value)}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Need help? Use the
-              {" "}
-              <a
-                href="https://www.doogal.co.uk/DistanceToSea"
-                className="font-medium text-[var(--mwp-navy)] underline"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                Doogal distance to sea calculator
-              </a>
-              {" "}
-              and enter the result here.
+              {distanceOverride
+                ? `Using ${distanceOverride} km (manual)`
+                : autoDistance !== null
+                ? `Using ${autoDistance} km (auto)`
+                : "Leave blank to use the auto value."}
             </p>
           </div>
           <div className="md:col-span-2 lg:col-span-2">

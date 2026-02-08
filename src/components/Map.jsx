@@ -1,5 +1,4 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import useGeo from "../hooks/useGeo";
 
 const ensureLeaflet = () =>
   new Promise((resolve, reject) => {
@@ -76,12 +75,10 @@ const ensureHtml2canvas = () => {
   return html2canvasPromise;
 };
 
-const Map = forwardRef(({ postcode, onPostcodeChange }, ref) => {
+const Map = forwardRef(({ postcode, onPostcodeChange, geo, geoError, setGeoError }, ref) => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
-
-  const { geo, geoError, setGeoError } = useGeo(postcode);
 
   const hasPostcode = useMemo(() => Boolean((postcode || "").trim()), [postcode]);
 
