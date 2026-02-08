@@ -1,5 +1,6 @@
 import React, { useCallback } from "react";
 import { createDesignBriefPayload } from "../utils/designBrief";
+import { createExampleHoardingPdfClient, downloadPdfBytes } from "../utils/pdfTemplateClient";
 
 const FenceOptions = ({
   options,
@@ -53,6 +54,19 @@ const FenceOptions = ({
     ? { borderColor: "#ffffff99", borderTopColor: "transparent" }
     : { borderColor: "var(--mwp-navy)", borderTopColor: "transparent" };
 
+  const handleDownloadSelected = useCallback(async () => {
+    if (selected.length === 0) return;
+    try {
+      const pdfBytes = await createExampleHoardingPdfClient({
+        postcode: (form?.postcode || "").trim(),
+      });
+
+      downloadPdfBytes(pdfBytes);
+    } catch (error) {
+      console.error("Failed to download selected PDF", error);
+    }
+  }, [form?.postcode, selected.length]);
+
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <h2 className="mb-4 text-lg font-medium">Fencing options</h2>
@@ -92,7 +106,12 @@ const FenceOptions = ({
           Download {selected.length} selected Heras fence option{selected.length === 1 ? "" : "s"}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button disabled={selected.length === 0} className={downloadButtonClasses}>
+          <button
+            type="button"
+            onClick={handleDownloadSelected}
+            disabled={selected.length === 0}
+            className={downloadButtonClasses}
+          >
             Download selected
           </button>
           <button
