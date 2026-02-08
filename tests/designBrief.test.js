@@ -76,7 +76,7 @@ test("creates a payload that mirrors the UI formatting", () => {
   );
   assert.equal(payload.selectedOptions[0].capacity, "0.123 kPa");
 
-  const basicWindRow = payload.outputs.find((row) => row.label === "Basic wind speed (Vb)");
+  const basicWindRow = payload.outputs.find((row) => row.label.startsWith("Basic wind speed"));
   assert.ok(basicWindRow);
   assert.equal(basicWindRow.value, "24.5 m/s");
 

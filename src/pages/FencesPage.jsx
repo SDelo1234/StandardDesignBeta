@@ -6,11 +6,13 @@ import WindResults from "../components/WindResults";
 import useGeo from "../hooks/useGeo";
 import useWind from "../hooks/useWind";
 import { distanceToCoastKm } from "../utils/distanceToCoast";
-import { DEFAULT_TERRAIN_CATEGORY, Z0_BY_TERRAIN } from "../utils/terrain";
+import { DEFAULT_TERRAIN_CATEGORY, Z0_BY_TERRAIN, ZMIN_BY_TERRAIN } from "../utils/terrain";
 import {
   deriveWindFactors,
   computeAltitudeFactor,
   computeBasicWind,
+  computeWindProfile,
+  CF_HOARDING,
   C_DIR,
 } from "../utils/wind";
 import { generateDesignBriefPdf } from "../utils/designBrief";
@@ -308,15 +310,8 @@ const FencesPage = () => {
       typeof effectiveAltitude === "number" && Number.isFinite(effectiveAltitude)
         ? effectiveAltitude
         : 0;
-    const referenceHeight =
-      typeof requiredHeight === "number" && Number.isFinite(requiredHeight) && requiredHeight > 0
-        ? requiredHeight
-        : 10;
 
-    const cAlt = computeAltitudeFactor({
-      altitude_m: altitudeValue,
-      referenceHeight_m: referenceHeight,
-    });
+    const cAlt = computeAltitudeFactor({ altitude_m: altitudeValue });
 
     return {
       ...baseFactors,
@@ -358,6 +353,22 @@ const FencesPage = () => {
       return null;
     }
 
+    // BS EN 1991-1-4 wind profile at fence height
+    const terrainCat = windInputs.terrainCategory || DEFAULT_TERRAIN_CATEGORY;
+    const z0 = windInputs.terrainRoughness_z0_m ?? Z0_BY_TERRAIN[terrainCat];
+    const zmin = ZMIN_BY_TERRAIN[terrainCat] ?? 2;
+
+    const profile = computeWindProfile({
+      vb_ms: basicWind.vb_ms,
+      qb_kpa: basicWind.qb_kpa,
+      z_m: requiredHeight,
+      z0_m: z0,
+      zmin_m: zmin,
+    });
+
+    const cf = CF_HOARDING;
+    const netPressure_kpa = cf * profile.qp_kpa;
+
     return {
       ...wind,
       baseWind: {
@@ -366,18 +377,21 @@ const FencesPage = () => {
         vb_map_ms: baseSpeed,
       },
       speed_ms: basicWind.vb_ms,
-      pressure_kpa: basicWind.qb_kpa,
+      pressure_kpa: netPressure_kpa,
       vb_map: baseSpeed,
       derivedFactors: {
         ...derivedFactors,
         vb_ms: basicWind.vb_ms,
         qb_kpa: basicWind.qb_kpa,
       },
+      profile,
+      cf,
+      netPressure_kpa,
       terrainCategory: windInputs.terrainCategory,
       terrainRoughness_z0_m: windInputs.terrainRoughness_z0_m,
       inputs: windInputs,
     };
-  }, [wind, derivedFactors, windInputs]);
+  }, [wind, derivedFactors, windInputs, requiredHeight]);
 
   return (
     <div className="mx-auto max-w-5xl p-6">

@@ -44,6 +44,15 @@ export const Z0_BY_TERRAIN = {
   IV: 1,
 };
 
+/** Minimum reference height zmin (m) per UK NA Table NA.3 */
+export const ZMIN_BY_TERRAIN = {
+  "0": 1,
+  I: 1,
+  II: 2,
+  III: 5,
+  IV: 10,
+};
+
 export const DEFAULT_TERRAIN_CATEGORY = "III";
 
 export const getTerrainOption = (id) =>

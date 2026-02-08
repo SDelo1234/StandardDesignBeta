@@ -16,7 +16,8 @@ const FenceOptions = ({
     (option) => {
       if (!wind) return true;
       const heightTooShort = requiredHeight > option.maxHeight_m;
-      const overCapacity = wind.pressure_kpa > option.capacity_kpa;
+      const designPressure = wind.netPressure_kpa ?? wind.pressure_kpa;
+      const overCapacity = designPressure > option.capacity_kpa;
       return heightTooShort || overCapacity;
     },
     [requiredHeight, wind]

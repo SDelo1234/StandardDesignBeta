@@ -198,35 +198,49 @@ export const createDesignBriefPayload = ({
   ];
 
   const factors = wind.derivedFactors || {};
+  const profile = wind.profile || {};
   const outputs = [
-    {
-      label: "Basic wind speed (Vb)",
-      value: formatWindSpeed(factors.vb_ms ?? wind.speed_ms),
-    },
-    {
-      label: "Basic wind pressure (qb)",
-      value: formatPressure(factors.qb_kpa ?? wind.pressure_kpa),
-    },
     {
       label: "Map wind speed (Vb,map)",
       value: formatWindSpeed(wind.vb_map),
     },
     {
-      label: "Map wind pressure (qb,map)",
-      value: formatPressure(wind.baseWind?.pressure_kpa),
+      label: "Basic wind speed (Vb) — Eq 4.1",
+      value: formatWindSpeed(factors.vb_ms ?? wind.speed_ms),
+    },
+    {
+      label: "Basic velocity pressure (qb) — Eq 4.10",
+      value: formatPressure(factors.qb_kpa ?? wind.pressure_kpa),
+    },
+    {
+      label: "Peak velocity pressure qp(z) — Eq 4.8",
+      value: formatPressure(profile.qp_kpa),
+    },
+    {
+      label: "Net fence pressure (cf × qp) — §7.4",
+      value: formatPressure(wind.netPressure_kpa),
+    },
+    {
+      label: "Mean wind velocity vm(z) — Eq 4.3",
+      value: formatWindSpeed(profile.vm_ms),
     },
     {
       label: "Surface roughness z₀",
       value: formatRoughness(wind.terrainRoughness_z0_m),
     },
-    { label: "C_prob", value: formatFactor(factors.cProb) },
-    { label: "C_season", value: formatFactor(factors.cSeason) },
-    { label: "C_alt", value: formatFactor(factors.cAlt) },
-    { label: "C_dir", value: formatFactor(factors.cDir) },
     {
       label: "Return period",
       value: factors.returnPeriodYears ? `${factors.returnPeriodYears} years` : "–",
     },
+    { label: "cprob", value: formatFactor(factors.cProb) },
+    { label: "cseason", value: formatFactor(factors.cSeason) },
+    { label: "calt — Eq NA.2a", value: formatFactor(factors.cAlt) },
+    { label: "cdir", value: formatFactor(factors.cDir) },
+    { label: "cr(z) — Eq 4.4", value: formatFactor(profile.cr) },
+    { label: "co(z)", value: formatFactor(profile.co) },
+    { label: "Iv(z) — Eq 4.7", value: formatFactor(profile.Iv) },
+    { label: "ce(z) — Eq 4.9", value: formatFactor(profile.ce) },
+    { label: "cf (force coeff.) — §7.4", value: formatFactor(wind.cf) },
   ];
 
   const meta = {
