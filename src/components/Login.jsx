@@ -3,9 +3,7 @@ import React from "react";
 const Login = ({ pin, onChange, onSubmit, error }) => (
   <form onSubmit={onSubmit} className="w-full rounded-2xl bg-white p-6 shadow-sm">
     <h1 className="mb-2 text-xl font-semibold">Browne access</h1>
-    <p className="mb-4 text-sm text-gray-600">
-      Enter PIN to continue. Demo PIN: <span className="font-mono">1234</span>.
-    </p>
+    <p className="mb-4 text-sm text-gray-600">Enter your PIN to continue.</p>
     <label className="mb-1 block text-sm font-medium">PIN</label>
     <input
       type="password"

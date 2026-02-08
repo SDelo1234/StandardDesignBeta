@@ -3,7 +3,9 @@ import FenceInputs from "../components/FenceInputs";
 import FenceOptions from "../components/FenceOptions";
 import Map from "../components/Map";
 import WindResults from "../components/WindResults";
+import useGeo from "../hooks/useGeo";
 import useWind from "../hooks/useWind";
+import { distanceToCoastKm } from "../utils/distanceToCoast";
 import { DEFAULT_TERRAIN_CATEGORY, Z0_BY_TERRAIN } from "../utils/terrain";
 import {
   deriveWindFactors,
@@ -50,6 +52,30 @@ const FencesPage = () => {
   const [exportingBrief, setExportingBrief] = useState(false);
 
   const mapRef = useRef(null);
+  const [distanceOverride, setDistanceOverride] = useState("");
+
+  const { geo, geoError, setGeoError } = useGeo(form.postcode);
+
+  const autoDistance = useMemo(() => {
+    if (!geo.lat || !geo.lon) return null;
+    return distanceToCoastKm(geo.lat, geo.lon);
+  }, [geo.lat, geo.lon]);
+
+  // Auto-fill distance to sea when geo resolves, unless user has overridden
+  useEffect(() => {
+    if (autoDistance !== null && !distanceOverride) {
+      setForm((prev) => {
+        const next = String(autoDistance);
+        if (prev.distanceToSea === next) return prev;
+        return { ...prev, distanceToSea: next };
+      });
+    }
+  }, [autoDistance, distanceOverride]);
+
+  const handleDistanceOverride = useCallback((value) => {
+    setDistanceOverride(value);
+    setForm((prev) => ({ ...prev, distanceToSea: value }));
+  }, []);
 
   const {
     wind,
@@ -362,7 +388,14 @@ const FencesPage = () => {
         </p>
       </header>
 
-      <Map ref={mapRef} postcode={form.postcode} onPostcodeChange={(value) => updateField("postcode", value)} />
+      <Map
+        ref={mapRef}
+        postcode={form.postcode}
+        onPostcodeChange={(value) => updateField("postcode", value)}
+        geo={geo}
+        geoError={geoError}
+        setGeoError={setGeoError}
+      />
       <FenceInputs
         form={form}
         errors={errors}
@@ -374,6 +407,9 @@ const FencesPage = () => {
         effectiveAltitude={effectiveAltitude}
         altitudeMatch={datasetSources.altitude}
         onTerrainChange={handleTerrainCategoryChange}
+        autoDistance={autoDistance}
+        distanceOverride={distanceOverride}
+        onDistanceOverrideChange={handleDistanceOverride}
       />
 
       {windWithTerrain && (
