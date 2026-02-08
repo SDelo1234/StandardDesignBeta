@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import Header from "./components/Header";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import AdminPage from "./pages/AdminPage";
 import FencesPage from "./pages/FencesPage";
 import LoginPage from "./pages/LoginPage";
 import ShaftsPage from "./pages/ShaftsPage";
@@ -11,6 +12,17 @@ const RequireAuth = () => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  return <Outlet />;
+};
+
+const RequireAdmin = () => {
+  const { isAuthenticated, isAdmin } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!isAdmin) {
+    return <Navigate to="/tools" replace />;
   }
   return <Outlet />;
 };
@@ -27,6 +39,9 @@ const AppRoutes = () => {
           <Route path="/tools" element={<ToolsPage />} />
           <Route path="/tools/fences" element={<FencesPage />} />
           <Route path="/tools/shafts" element={<ShaftsPage />} />
+        </Route>
+        <Route element={<RequireAdmin />}>
+          <Route path="/admin" element={<AdminPage />} />
         </Route>
         <Route
           path="*"

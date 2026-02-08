@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 const LOGO = "https://browne.co.uk/wp-content/themes/browne/images/logo_footer.jpg";
 
 const Header = () => {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -15,6 +15,7 @@ const Header = () => {
   };
 
   const showBackToTools = isAuthenticated && location.pathname.startsWith("/tools/") && location.pathname !== "/tools";
+  const onAdminPage = location.pathname === "/admin";
 
   return (
     <div className="sticky top-0 z-40 mb-6 w-full border-b bg-white/95 px-4 py-2 backdrop-blur">
@@ -30,6 +31,24 @@ const Header = () => {
               className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs shadow-sm hover:bg-gray-50"
             >
               <span aria-hidden>←</span> Back to tools
+            </button>
+          )}
+          {onAdminPage && (
+            <button
+              type="button"
+              onClick={() => navigate("/tools")}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs shadow-sm hover:bg-gray-50"
+            >
+              <span aria-hidden>←</span> Back to tools
+            </button>
+          )}
+          {isAuthenticated && isAdmin && !onAdminPage && (
+            <button
+              type="button"
+              onClick={() => navigate("/admin")}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs shadow-sm hover:bg-gray-50"
+            >
+              Admin
             </button>
           )}
           {isAuthenticated && (
