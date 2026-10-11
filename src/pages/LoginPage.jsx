@@ -15,9 +15,9 @@ const LoginPage = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const result = login(pin);
+    const result = await login(pin);
     if (result.success) {
       setError("");
       navigate("/tools", { replace: true });

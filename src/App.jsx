@@ -9,7 +9,8 @@ import ShaftsPage from "./pages/ShaftsPage";
 import ToolsPage from "./pages/ToolsPage";
 
 const RequireAuth = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, ready } = useAuth();
+  if (!ready) return null;
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -17,7 +18,8 @@ const RequireAuth = () => {
 };
 
 const RequireAdmin = () => {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, ready } = useAuth();
+  if (!ready) return null;
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -28,7 +30,7 @@ const RequireAdmin = () => {
 };
 
 const AppRoutes = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, ready } = useAuth();
 
   return (
     <>
@@ -45,7 +47,7 @@ const AppRoutes = () => {
         </Route>
         <Route
           path="*"
-          element={<Navigate to={isAuthenticated ? "/tools" : "/login"} replace />}
+          element={ready ? <Navigate to={isAuthenticated ? "/tools" : "/login"} replace /> : null}
         />
       </Routes>
     </>

@@ -30,3 +30,8 @@ export const formatPostcode = (value) => {
   const outward = normalised.slice(0, normalised.length - 3);
   return `${outward} ${inward}`;
 };
+
+const POSTCODE_PATTERN = /^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/;
+
+/** Full UK postcode (outward + inward), ignoring spaces and case. */
+export const isValidPostcode = (value) => POSTCODE_PATTERN.test(normalisePostcode(value));

@@ -1,69 +1,74 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { findByPin } from "../utils/pinStore";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { findByPin, getAccountById } from "../utils/pinStore";
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEY = "heras_demo_authed";
-const USER_KEY = "heras_current_user";
+const SESSION_KEY = "heras_session_user_id";
 
-const normalisePin = (value) => (value || "").replace(/\D/g, "").trim();
+const toUser = (account) => ({ id: account.id, name: account.name, isAdmin: account.isAdmin === true });
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  // The session holds only the account id; name and admin rights always come
+  // from the account store, so deleted or deactivated accounts are logged out.
+  const restore = useCallback(async () => {
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored === "1") {
-        const user = JSON.parse(window.localStorage.getItem(USER_KEY) || "null");
-        setIsAuthenticated(true);
-        setCurrentUser(user);
+      const id = window.localStorage.getItem(SESSION_KEY);
+      const account = id ? await getAccountById(id) : null;
+      if (account && account.isActive) {
+        setCurrentUser(toUser(account));
+      } else {
+        if (id) window.localStorage.removeItem(SESSION_KEY);
+        setCurrentUser(null);
       }
-    } catch (e) {
-      // Ignore storage errors in non-browser environments
+    } catch {
+      setCurrentUser(null);
+    } finally {
+      setReady(true);
     }
   }, []);
 
-  const login = (pin) => {
-    const normalised = normalisePin(pin);
-    const account = findByPin(normalised);
+  useEffect(() => {
+    restore();
+    const onStorage = () => restore();
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [restore]);
 
-    if (account) {
-      const user = { id: account.id, name: account.name, isAdmin: account.isAdmin };
-      setIsAuthenticated(true);
-      setCurrentUser(user);
-      try {
-        window.localStorage.setItem(STORAGE_KEY, "1");
-        window.localStorage.setItem(USER_KEY, JSON.stringify(user));
-      } catch (e) {
-        // Ignore storage errors
-      }
-      return { success: true };
-    }
-    return { success: false, error: "Incorrect PIN." };
-  };
-
-  const logout = () => {
-    setIsAuthenticated(false);
-    setCurrentUser(null);
+  const login = useCallback(async (pin) => {
+    const account = await findByPin(pin);
+    if (!account) return { success: false, error: "Incorrect PIN." };
+    setCurrentUser(toUser(account));
     try {
-      window.localStorage.removeItem(STORAGE_KEY);
-      window.localStorage.removeItem(USER_KEY);
-    } catch (e) {
+      window.localStorage.setItem(SESSION_KEY, account.id);
+    } catch {
       // Ignore storage errors
     }
-  };
+    return { success: true };
+  }, []);
+
+  const logout = useCallback(() => {
+    setCurrentUser(null);
+    try {
+      window.localStorage.removeItem(SESSION_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
 
   const value = useMemo(
     () => ({
-      isAuthenticated,
+      ready,
+      isAuthenticated: Boolean(currentUser),
       currentUser,
       isAdmin: currentUser?.isAdmin === true,
       login,
       logout,
+      refresh: restore,
     }),
-    [isAuthenticated, currentUser]
+    [currentUser, login, logout, ready, restore],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

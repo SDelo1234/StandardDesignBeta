@@ -12,7 +12,7 @@
 const R_KM = 6371; // Earth mean radius in km
 const toRad = (deg) => (deg * Math.PI) / 180;
 
-const haversine = (lat1, lon1, lat2, lon2) => {
+export const haversine = (lat1, lon1, lat2, lon2) => {
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
@@ -432,4 +432,14 @@ export const distanceToCoastKm = (lat, lon) => {
     if (d < min) min = d;
   }
   return Math.round(min * 10) / 10; // 1 decimal place
+};
+
+/** Length of a polyline [[lat, lon], ...] in metres. */
+export const polylineLengthM = (points) => {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += haversine(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
+  }
+  return total * 1000;
 };

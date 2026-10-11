@@ -4,21 +4,19 @@ import {
   formatAltitudeValue,
   formatFactor,
   formatPressure,
-  formatRoughness,
   formatWindSpeed,
 } from "./formatters.js";
 import { MONTH_LABELS, getDurationLabel } from "./formOptions.js";
 
 const BROWNE_LOGO_URL = "https://browne.co.uk/wp-content/themes/browne/images/logo.jpg";
 
-const FOOTER_NOTE =
-  "Mock only – would download drawings and calcs with title blocks populated.";
-
-const SOURCE_MESSAGES = {
-  dataset: (match) =>
-    `Derived from postcode wind dataset (${formatPostcode(match) || "unknown match"})`,
-  fallback: () => "Estimated using fallback rules (no dataset match)",
-};
+const LIMITATIONS = [
+  "Fence capacities are peak velocity pressures qp; the net pressure coefficient cp,net is included in the fence system design.",
+  "The exposure factor is an approximation to UK NA Figures NA.7/NA.8 unless a manual value is shown. Displacement height is taken as zero.",
+  "Distance to sea is approximate (±5 km) unless entered manually.",
+  "Orography is only included where it has been marked significant and c_o entered.",
+  "This brief is to be checked and signed by a competent temporary works designer before use.",
+];
 
 const ensureValue = (value) => (value === null || value === undefined || value === "" ? "–" : value);
 
@@ -93,140 +91,99 @@ export const getDesignBriefFileName = (projectName, generatedAt) => {
   return `DesignBrief_${safeName}_${datePart}.pdf`;
 };
 
-const createSelectedOptionsSummary = (options, selectedIds) =>
-  options
+export const formatTraceValue = (row) => {
+  const digits = row.unit === "kPa" ? 3 : row.unit === "m/s" ? 2 : row.unit === "years" ? 0 : 3;
+  return `${row.value.toFixed(digits)}${row.unit ? ` ${row.unit}` : ""}`;
+};
+
+const sourceLabel = (manual, match) => {
+  if (manual) return "manual";
+  if (!match) return "–";
+  return `dataset, ${match.match}`;
+};
+
+export const createDesignBriefPayload = ({
+  form,
+  result,
+  selectedIds,
+  site = {},
+  currentDate = new Date(),
+}) => {
+  if (!result || !result.ok) {
+    throw new Error("A completed wind calculation is required to create the design brief payload.");
+  }
+
+  const selectedOptions = result.options
     .filter((option) => selectedIds.includes(option.id))
     .map((option) => ({
       id: option.id,
       name: option.name,
       capacity: formatPressure(option.capacity_kpa),
-      maxHeight: Number.isFinite(option.maxHeight_m)
-        ? `${option.maxHeight_m.toFixed(1)} m`
-        : "–",
+      maxHeight: Number.isFinite(option.maxHeight_m) ? `${option.maxHeight_m.toFixed(1)} m` : "–",
+      utilisation: Number.isFinite(option.utilisation) ? `${Math.round(option.utilisation * 100)}%` : "–",
     }));
 
-const describeWindSource = (wind) => {
-  if (!wind) return "";
-  if (wind.source === "dataset") {
-    return SOURCE_MESSAGES.dataset(wind.match);
-  }
-  return SOURCE_MESSAGES.fallback();
-};
-
-let jsPdfPromise = null;
-
-const ensureJsPdf = () => {
-  if (window.jspdf && window.jspdf.jsPDF) {
-    return Promise.resolve(window.jspdf.jsPDF);
-  }
-
-  if (jsPdfPromise) {
-    return jsPdfPromise;
-  }
-
-  jsPdfPromise = new Promise((resolve, reject) => {
-    const scriptId = "jspdf-js";
-    const existing = document.getElementById(scriptId);
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.jspdf && window.jspdf.jsPDF));
-      existing.addEventListener("error", reject);
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = scriptId;
-    script.src = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
-    script.onload = () => resolve(window.jspdf && window.jspdf.jsPDF);
-    script.onerror = reject;
-    document.body.appendChild(script);
-  });
-
-  return jsPdfPromise;
-};
-
-export const createDesignBriefPayload = ({
-  form,
-  wind,
-  options,
-  selectedIds,
-  currentDate = new Date(),
-}) => {
-  if (!wind) {
-    throw new Error("Wind data is required to create the design brief payload.");
-  }
-
-  const selectedOptions = createSelectedOptionsSummary(options, selectedIds);
-  const windInputs = wind.inputs || {};
-  const terrainOption = getTerrainOption(wind.terrainCategory);
-  const terrainLabel = terrainOption ? terrainOption.title : wind.terrainCategory || "–";
-
+  const terrainOption = getTerrainOption(form.terrain);
   const monthLabel =
     typeof form.installationMonth === "number"
       ? MONTH_LABELS[form.installationMonth - 1] || "–"
       : "–";
   const durationLabel = getDurationLabel(form.durationCategory) || "–";
+  const vbMapRow = result.trace.find((row) => row.symbol === "vb,map");
+  const altitudeValue = site.altitudeManual ? Number(form.altitudeOverride) : site.altitudeMatch?.altitude;
 
   const inputs = [
     { label: "Project name", value: ensureValue((form.projectName || "").trim()) },
+    { label: "Project postcode", value: formatPostcode((form.postcode || "").trim()) || "–" },
     {
-      label: "Project postcode",
-      value: formatPostcode((form.postcode || "").trim()) || "–",
+      label: "Site location",
+      value: site.location
+        ? `${site.location.lat.toFixed(5)}, ${site.location.lon.toFixed(5)} (${
+            site.location.source === "pin" ? "map pin" : "postcode"
+          })`
+        : "–",
     },
     { label: "Month installed", value: monthLabel },
     { label: "Expected duration", value: durationLabel },
+    { label: "Fence height", value: Number.isFinite(form.height) ? `${form.height.toFixed(1)} m` : "–" },
+    { label: "Fence length", value: site.fenceLengthM > 0 ? `${Math.round(site.fenceLengthM)} m (from map)` : "–" },
     { label: "Ground conditions", value: ensureValue(form.ground) },
     {
-      label: "Terrain category",
-      value: terrainLabel,
+      label: "Terrain",
+      value:
+        form.terrain === "town" && form.distanceIntoTown
+          ? `${terrainOption?.title ?? "Town"}, ${form.distanceIntoTown} km inside town`
+          : terrainOption?.title ?? "–",
+    },
+    {
+      label: "vb,map",
+      value: vbMapRow ? `${formatWindSpeed(vbMapRow.value)} (${sourceLabel(site.vbManual, site.windMatch)})` : "–",
+    },
+    {
+      label: "Altitude",
+      value: Number.isFinite(altitudeValue)
+        ? `${formatAltitudeValue(altitudeValue)} (${sourceLabel(site.altitudeManual, site.altitudeMatch)})`
+        : "–",
     },
     {
       label: "Distance to sea",
-      value: Number.isFinite(windInputs.distanceToSea_km)
-        ? `${windInputs.distanceToSea_km.toFixed(1)} km`
+      value: Number.isFinite(site.distanceToSea_km)
+        ? `${site.distanceToSea_km.toFixed(1)} km (${site.distanceManual ? "manual" : "auto, ±5 km"})`
         : "–",
     },
     {
-      label: "Altitude used",
-      value: formatAltitudeValue(windInputs.altitude_mAOD) || "–",
-    },
-    {
-      label: "Fence height",
-      value: Number.isFinite(windInputs.fenceHeight_m)
-        ? `${windInputs.fenceHeight_m.toFixed(1)} m`
-        : "–",
+      label: "Orography",
+      value: form.orographySignificant ? `Significant, c_o = ${ensureValue(form.co)}` : "Not significant",
     },
   ];
 
-  const factors = wind.derivedFactors || {};
   const outputs = [
-    {
-      label: "Basic wind speed (Vb)",
-      value: formatWindSpeed(factors.vb_ms ?? wind.speed_ms),
-    },
-    {
-      label: "Basic wind pressure (qb)",
-      value: formatPressure(factors.qb_kpa ?? wind.pressure_kpa),
-    },
-    {
-      label: "Map wind speed (Vb,map)",
-      value: formatWindSpeed(wind.vb_map),
-    },
-    {
-      label: "Map wind pressure (qb,map)",
-      value: formatPressure(wind.baseWind?.pressure_kpa),
-    },
-    {
-      label: "Surface roughness z₀",
-      value: formatRoughness(wind.terrainRoughness_z0_m),
-    },
-    { label: "C_prob", value: formatFactor(factors.cProb) },
-    { label: "C_season", value: formatFactor(factors.cSeason) },
-    { label: "C_alt", value: formatFactor(factors.cAlt) },
-    { label: "C_dir", value: formatFactor(factors.cDir) },
-    {
-      label: "Return period",
-      value: factors.returnPeriodYears ? `${factors.returnPeriodYears} years` : "–",
-    },
+    { label: "Basic wind speed vb", value: formatWindSpeed(result.vb) },
+    { label: "Basic pressure qb", value: formatPressure(result.qb) },
+    { label: "Exposure factor", value: formatFactor(result.ce * result.ceT * result.cOrog) },
+    { label: "Design pressure qp", value: formatPressure(result.qp) },
+    { label: "Return period", value: `${result.factors.returnPeriod} years` },
+    { label: "Calc engine", value: `v${result.engineVersion}` },
   ];
 
   const meta = {
@@ -235,19 +192,24 @@ export const createDesignBriefPayload = ({
     generatedAt: currentDate,
     generatedLabel: formatDateLabel(currentDate),
     requestedBy: (form.requestEmail || "").trim(),
+    engineVersion: result.engineVersion,
   };
 
   return {
     meta,
     selectedOptions,
+    customDesignRequired: result.options.every((option) => !option.passes),
     inputs,
     outputs,
-    terrain: {
-      label: terrainLabel,
-      description: terrainOption?.desc || "",
-    },
-    windSource: describeWindSource(wind),
-    notes: FOOTER_NOTE,
+    trace: result.trace.map((row) => ({
+      symbol: row.symbol,
+      // Standard PDF fonts have no Greek glyphs
+      label: row.label.replace(/ρ/g, "rho "),
+      value: formatTraceValue(row),
+      ref: row.ref,
+    })),
+    warnings: result.warnings,
+    limitations: LIMITATIONS,
   };
 };
 
@@ -508,7 +470,7 @@ const drawSelectedOptionsCard = (doc, { options, startX, startY, width }) => {
     const nameLines = doc.splitTextToSize(ensureValue(option.name), bodyWidth);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    const detailLine = `${ensureValue(option.capacity)} · max height ${ensureValue(option.maxHeight)}`;
+    const detailLine = `Capacity qp ${ensureValue(option.capacity)} · max height ${ensureValue(option.maxHeight)} · utilisation ${ensureValue(option.utilisation)}`;
     const detailLines = doc.splitTextToSize(detailLine, bodyWidth);
     const height =
       nameLines.length * nameLineHeight +
@@ -658,12 +620,106 @@ const drawInfoCard = (doc, { items, startX, startY, width }) => {
   return startY + cardHeight;
 };
 
-export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
-  const JsPDF = await ensureJsPdf();
-  if (!JsPDF) {
-    throw new Error("Could not load PDF generator.");
-  }
+const drawCalculationPage = (doc, { payload, margin, pageWidth, pageHeight, contentWidth }) => {
+  doc.addPage();
+  let y = margin;
 
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(17, 24, 39);
+  doc.text("Wind calculation", margin, y + 10);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(75, 85, 99);
+  doc.text("BS EN 1991-1-4 + UK NA, BS EN 1991-1-6", margin, y + 24);
+  y += 40;
+
+  const cols = [
+    { key: "symbol", label: "Symbol", width: 62 },
+    { key: "label", label: "Description", width: contentWidth - 62 - 80 - 120 },
+    { key: "value", label: "Value", width: 80 },
+    { key: "ref", label: "Reference", width: 120 },
+  ];
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin, y, contentWidth, 18, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  let x = margin + 6;
+  cols.forEach((col) => {
+    doc.text(col.label, x, y + 12);
+    x += col.width;
+  });
+  y += 18;
+
+  payload.trace.forEach((row, index) => {
+    doc.setFont("helvetica", row.symbol === "qp" ? "bold" : "normal");
+    doc.setFontSize(8.5);
+    const cells = cols.map((col) => doc.splitTextToSize(String(row[col.key] ?? "–"), col.width - 10));
+    const height = Math.max(...cells.map((lines) => lines.length)) * 11 + 8;
+    if (index % 2 === 1) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(margin, y, contentWidth, height, "F");
+    }
+    doc.setTextColor(17, 24, 39);
+    let cx = margin + 6;
+    cells.forEach((lines, i) => {
+      doc.text(lines, cx, y + 12);
+      cx += cols[i].width;
+    });
+    y += height;
+  });
+  doc.setDrawColor(203, 213, 225);
+  doc.line(margin, y, margin + contentWidth, y);
+  y += 20;
+
+  const notes = [
+    ...payload.warnings.map((text) => ({ heading: "Warning", text })),
+    { heading: "Limitations", text: payload.limitations.map((line) => `• ${line}`).join("\n") },
+  ];
+  y = drawInfoCard(doc, { items: notes, startX: margin, startY: y, width: contentWidth }) + 20;
+
+  // Sign-off block
+  const boxHeight = 64;
+  if (y + boxHeight > pageHeight - margin - 20) {
+    doc.addPage();
+    y = margin;
+  }
+  const boxWidth = contentWidth / 3;
+  ["Prepared by", "Checked by", "Approved by"].forEach((title, i) => {
+    const bx = margin + i * boxWidth;
+    doc.setDrawColor(148, 163, 184);
+    doc.rect(bx, y, boxWidth, boxHeight);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    doc.text(title, bx + 6, y + 12);
+    doc.setFont("helvetica", "normal");
+    doc.text("Name / signature / date", bx + 6, y + boxHeight - 8);
+  });
+  doc.setFontSize(8);
+  doc.text("Revision: P01", pageWidth - margin, y + boxHeight + 14, { align: "right" });
+};
+
+const drawPageFooters = (doc, { meta, margin, pageWidth, pageHeight }) => {
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(107, 114, 128);
+    doc.text(
+      `${meta.projectName || "Design brief"} · calc engine v${meta.engineVersion} · ${meta.generatedLabel}`,
+      margin,
+      pageHeight - 24
+    );
+    doc.text(`Page ${i} of ${pages}`, pageWidth - margin, pageHeight - 24, { align: "right" });
+  }
+};
+
+export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
+  const { jsPDF: JsPDF } = await import("jspdf");
   const doc = new JsPDF({ unit: "pt", format: "a4" });
   const margin = 48;
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -726,9 +782,22 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
     columnHasContent[index] = true;
   };
 
-  const inputsHeight = measureTableCardHeight(doc, { rows: payload.inputs, width: columnWidth }).cardHeight;
-  const mapHeight = mapImage ? getMapCardHeight(columnWidth) : 0;
-  const pairedHeight = Math.max(inputsHeight, mapHeight);
+
+  if (payload.customDesignRequired) {
+    addCardToColumn(0, (startY) =>
+      drawInfoCard(doc, {
+        items: [
+          {
+            heading: "Custom design required",
+            text: "No standard fence system is suitable for the design pressure at this site.",
+          },
+        ],
+        startX: columnX[0],
+        startY,
+        width: columnWidth,
+      })
+    );
+  }
 
   if (payload.selectedOptions.length) {
     addCardToColumn(0, (startY) =>
@@ -745,11 +814,10 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
     addCardToColumn(0, (startY) =>
       drawMapCard(doc, {
         mapImage,
-        caption: meta.postcode ? `Centered on ${meta.postcode}` : "Map capture",
+        caption: meta.postcode ? `Site ${meta.postcode}` : "Map capture",
         startX: columnX[0],
         startY,
         width: columnWidth,
-        minHeight: pairedHeight,
       })
     );
   }
@@ -761,27 +829,20 @@ export const generateDesignBriefPdf = async ({ payload, mapImage }) => {
       startX: columnX[1],
       startY,
       width: columnWidth,
-      minHeight: pairedHeight,
     })
   );
 
-  addCardToColumn(1, (startY) =>
+  addCardToColumn(0, (startY) =>
     drawWindOutputsCard(doc, {
       rows: payload.outputs,
-      startX: columnX[1],
+      startX: columnX[0],
       startY,
       width: columnWidth,
     })
   );
 
-  const contentBottom = Math.max(columnHeights[0], columnHeights[1]);
-
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(8);
-  doc.setTextColor(107, 114, 128);
-  const footerLines = doc.splitTextToSize(payload.notes, contentWidth);
-  const footerY = Math.min(pageHeight - margin / 2, contentBottom + SECTION_GAP);
-  doc.text(footerLines, margin, footerY);
+  drawCalculationPage(doc, { payload, margin, pageWidth, pageHeight, contentWidth });
+  drawPageFooters(doc, { meta, margin, pageWidth, pageHeight });
 
   const fileName = getDesignBriefFileName(meta.projectName, meta.generatedAt);
   doc.save(fileName);

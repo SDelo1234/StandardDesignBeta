@@ -2,42 +2,46 @@
 
 This project refactors the original single-file fencing demo into a modern Vite + React + Tailwind application with React Router and a shared authentication context.
 
+## How the design check works
+
+`src/utils/fenceDesign.js` holds the whole calculation as pure functions, used by the page, the PDF and the tests:
+
+1. **vb** = vb,map · c_dir · c_season · c_prob · c_alt (BS EN 1991-1-4 + UK NA), with return periods from BS EN 1991-1-6 Table 3.1 and a 20 m/s execution minimum (EN 1991-1-6 3.1(5)).
+2. **qb** = ½ρvb², ρ = 1.226 kg/m³.
+3. **qp** = ce · ce,T · c_o² · qb. ce and ce,T approximate UK NA Figures NA.7/NA.8 (EN 1991-1-4 profile blended by distance to sea); an engineer can override them with values read from the figures.
+4. Each fence system in `src/utils/fenceSystems.js` passes if qp ≤ its capacity and the fence height ≤ its maximum height. Capacities are peak velocity pressures: cp,net is already included in the fence system design.
+
+There is no fallback wind speed: if vb,map or altitude can't be found, the user must enter them.
+
+## Data
+
+* `public/data/vbpostcode.csv` – vb,map by postcode district.
+* `data/Postcode_elevation.csv` – altitude by postcode. `scripts/build-altitude-shards.mjs` splits it into one small JSON file per district under `public/data/alt/` (git-ignored). This runs automatically before `npm run dev` and `npm run build`.
+* Geocoding uses [postcodes.io](https://postcodes.io); map tiles come from OpenStreetMap.
+
+`npm run check:datasets "SW4 6QD"` prints the looked-up values for a postcode.
+
 ## Project Structure
 
 ```
 src/
-  components/
-    FenceInputs.jsx
-    FenceOptions.jsx
-    Header.jsx
-    Login.jsx
-    Map.jsx
-    Selector.jsx
-    WindResults.jsx
-  context/
-    AuthContext.jsx
-  hooks/
-    useGeo.js
-    useWind.js
-  pages/
-    FencesPage.jsx
-    LoginPage.jsx
-    ShaftsPage.jsx
-    ToolsPage.jsx
-  App.jsx
-  main.jsx
+  components/   inputs, map, results, calc trace, charts, fence options, admin
+  context/      AuthContext (PIN login)
+  hooks/        useGeo (postcodes.io), useWind (vb,map + altitude lookup)
+  pages/        Fences, Login, Tools, Shafts, Admin
+  utils/        fenceDesign (engine), fenceSystems, datasets, designBrief (PDF), pinStore
+tests/          node --test unit tests
 ```
 
-* **Login flow** – `/login` asks for the PIN and stores the session in `AuthContext`.
-* **Tools hub** – `/tools` lets users choose between fence calculations and shafts (coming soon).
-* **Fences workflow** – `/tools/fences` combines inputs, wind lookup, map updates, and fence option filtering.
-* **Shafts placeholder** – `/tools/shafts` renders a temporary message until implemented.
+* **Login** – PIN accounts are stored in the browser with hashed PINs. This is a convenience gate, not server-side security.
+* **Admin** – `/admin` manages PIN accounts on this browser. The default admin PIN is 0000; change it on first use.
 
 ## Getting Started
 
 ```bash
 npm install
 npm run dev
+npm test
 ```
 
 Open the printed URL (usually http://localhost:5173) in a browser to exercise the full routed experience. Tailwind classes are already configured via `postcss.config.js` and `tailwind.config.js`.

@@ -1,6 +1,10 @@
-import React, { useId, useState } from "react";
+import React, { useCallback, useEffect, useId, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import {
   addAccount,
+  PIN_MAX_LENGTH,
+  PIN_MIN_LENGTH,
+  defaultAdminPinInUse,
   deleteAccount,
   getAccounts,
   toggleActive,
@@ -25,9 +29,9 @@ const AddAccountForm = ({ onSaved }) => {
     setError("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = addAccount({ name, pin, isAdmin });
+    const result = await addAccount({ name, pin, isAdmin });
     if (result.error) {
       setError(result.error);
       return;
@@ -62,10 +66,10 @@ const AddAccountForm = ({ onSaved }) => {
           id={`${id}-pin`}
           type="text"
           inputMode="numeric"
-          maxLength={6}
+          maxLength={PIN_MAX_LENGTH}
           value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-          placeholder="4-6 digits"
+          placeholder={`${PIN_MIN_LENGTH}-${PIN_MAX_LENGTH} digits`}
           className="w-full rounded-xl border border-gray-300 p-2.5 font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-[var(--mwp-navy)]"
         />
       </div>
@@ -102,12 +106,12 @@ const AddAccountForm = ({ onSaved }) => {
 
 const EditRow = ({ account, onSaved, onCancel }) => {
   const [name, setName] = useState(account.name);
-  const [pin, setPin] = useState(account.pin);
+  const [pin, setPin] = useState("");
   const [isAdmin, setIsAdmin] = useState(account.isAdmin);
   const [error, setError] = useState("");
 
-  const handleSave = () => {
-    const result = updateAccount(account.id, { name, pin, isAdmin });
+  const handleSave = async () => {
+    const result = await updateAccount(account.id, { name, pin, isAdmin });
     if (result.error) {
       setError(result.error);
       return;
@@ -129,10 +133,12 @@ const EditRow = ({ account, onSaved, onCancel }) => {
         <input
           type="text"
           inputMode="numeric"
-          maxLength={6}
+          maxLength={PIN_MAX_LENGTH}
           value={pin}
+          aria-label="New PIN"
+          placeholder="New PIN"
           onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-          className="w-24 rounded-lg border border-gray-300 px-2 py-1 font-mono text-sm tracking-widest focus:outline-none focus:ring-1 focus:ring-[var(--mwp-navy)]"
+          className="w-28 rounded-lg border border-gray-300 px-2 py-1 font-mono text-sm tracking-widest focus:outline-none focus:ring-1 focus:ring-[var(--mwp-navy)]"
         />
       </td>
       <td className="px-4 py-2 text-center">
@@ -176,14 +182,17 @@ const EditRow = ({ account, onSaved, onCancel }) => {
 const AccountTable = ({ accounts, onRefresh }) => {
   const [editingId, setEditingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [error, setError] = useState("");
 
-  const handleToggle = (id) => {
-    toggleActive(id);
+  const handleToggle = async (id) => {
+    const result = await toggleActive(id);
+    setError(result.error || "");
     onRefresh();
   };
 
-  const handleDelete = (id) => {
-    deleteAccount(id);
+  const handleDelete = async (id) => {
+    const result = await deleteAccount(id);
+    setError(result.error || "");
     setConfirmDeleteId(null);
     onRefresh();
   };
@@ -198,6 +207,7 @@ const AccountTable = ({ accounts, onRefresh }) => {
 
   return (
     <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+      {error && <p className="border-b bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
@@ -224,7 +234,7 @@ const AccountTable = ({ accounts, onRefresh }) => {
               ) : (
                 <tr key={a.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{a.name}</td>
-                  <td className="px-4 py-3 font-mono tracking-widest">{a.pin}</td>
+                  <td className="px-4 py-3 font-mono tracking-widest text-gray-400">••••</td>
                   <td className="px-4 py-3 text-center">
                     {a.isAdmin ? (
                       <span className="inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
@@ -299,12 +309,31 @@ const AccountTable = ({ accounts, onRefresh }) => {
 /* ------------------------------------------------------------------ */
 
 const AdminPinManager = () => {
-  const [accounts, setAccounts] = useState(() => getAccounts());
+  const { refresh: refreshSession } = useAuth();
+  const [accounts, setAccounts] = useState([]);
+  const [defaultPinWarning, setDefaultPinWarning] = useState(false);
 
-  const refresh = () => setAccounts(getAccounts());
+  const refresh = useCallback(async () => {
+    setAccounts(await getAccounts());
+    setDefaultPinWarning(await defaultAdminPinInUse());
+    refreshSession();
+  }, [refreshSession]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   return (
     <div className="space-y-6">
+      {defaultPinWarning && (
+        <p className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
+          An admin account still uses the default PIN 0000. Edit it and set a new PIN.
+        </p>
+      )}
+      <p className="rounded-2xl bg-slate-50 p-4 text-xs text-gray-600">
+        Accounts are stored in this browser only. PINs are stored hashed, but this is not a substitute for a server-side
+        login.
+      </p>
       <AccountTable accounts={accounts} onRefresh={refresh} />
       <AddAccountForm onSaved={refresh} />
     </div>

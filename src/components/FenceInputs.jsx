@@ -1,229 +1,351 @@
 import React from "react";
 import TerrainCategorySelector from "./TerrainCategorySelector";
-import { formatPostcode } from "../utils/postcode";
-import { formatAltitudeValue } from "../utils/formatters";
-import { DURATION_OPTIONS, MONTH_LABELS } from "../utils/formOptions";
+import { Field, Section, SourceBadge, inputClass } from "./ui";
+import { formatAltitudeValue, formatWindSpeed } from "../utils/formatters";
+import { DURATION_OPTIONS, GROUND_OPTIONS, HEIGHT_OPTIONS, MONTH_LABELS } from "../utils/formOptions";
 
-const FenceInputs = ({
+export const ProjectSection = ({ form, errorFor, onChange, onBlur }) => (
+  <Section step={1} title="Project">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Field label="Project name" error={errorFor("projectName")}>
+        {(props) => (
+          <input
+            {...props}
+            className={inputClass(errorFor("projectName"))}
+            placeholder="e.g., Longreach STW – Perimeter"
+            value={form.projectName}
+            onChange={(e) => onChange("projectName", e.target.value)}
+            onBlur={() => onBlur("projectName")}
+          />
+        )}
+      </Field>
+      <Field label="Design requested by (email)" error={errorFor("requestEmail")} help="Shown in the PDF header.">
+        {(props) => (
+          <input
+            {...props}
+            type="email"
+            autoComplete="email"
+            className={inputClass(errorFor("requestEmail"))}
+            placeholder="name@example.com"
+            value={form.requestEmail}
+            onChange={(e) => onChange("requestEmail", e.target.value)}
+            onBlur={() => onBlur("requestEmail")}
+          />
+        )}
+      </Field>
+    </div>
+  </Section>
+);
+
+const statusBadge = (status, exact, labels) => {
+  if (status === "loading") return <SourceBadge kind="loading">Looking up…</SourceBadge>;
+  if (status === "ready") {
+    return exact ? (
+      <SourceBadge kind="dataset">{labels.exact}</SourceBadge>
+    ) : (
+      <SourceBadge kind="approx">{labels.approx}</SourceBadge>
+    );
+  }
+  if (status === "missing" || status === "error") return <SourceBadge kind="missing">Missing</SourceBadge>;
+  return null;
+};
+
+export const SiteDataSection = ({
   form,
-  errors,
   onChange,
-  autoAltitude,
+  wind,
+  windStatus,
+  altitude,
   altitudeStatus,
-  altitudeOverride,
-  onAltitudeOverrideChange,
-  effectiveAltitude,
-  altitudeMatch,
-  onTerrainChange,
   autoDistance,
-  distanceOverride,
-  onDistanceOverrideChange,
+  locationSource,
 }) => {
-  const renderAltitudeStatus = () => {
-    if (altitudeStatus === "loading") {
-      return "Looking up altitude…";
-    }
-    if (altitudeStatus === "error") {
-      return "Unable to load altitude data.";
-    }
-    if (autoAltitude !== null && autoAltitude !== undefined) {
-      const formatted = formatAltitudeValue(autoAltitude);
-      return formatted || `${autoAltitude} m AOD`;
-    }
-    if (!form.postcode.trim()) {
-      return "Enter a postcode to look up altitude.";
-    }
-    return "No dataset match for this postcode.";
-  };
+  const vbManual = form.vbMapOverride.trim() !== "";
+  const altManual = form.altitudeOverride.trim() !== "";
+  const seaManual = form.distanceToSeaOverride.trim() !== "";
 
-  const usingAltitude = formatAltitudeValue(effectiveAltitude);
+  const windText =
+    windStatus === "ready"
+      ? `${formatWindSpeed(wind.vb_map)} (${wind.exact ? "district" : "nearest prefix"} ${wind.match})`
+      : windStatus === "loading"
+      ? "Looking up…"
+      : windStatus === "idle"
+      ? "Enter a postcode."
+      : "No dataset value – enter vb,map from UK NA Figure NA.1.";
+
+  const altitudeText =
+    altitudeStatus === "ready"
+      ? `${formatAltitudeValue(altitude.altitude)} (${altitude.match})`
+      : altitudeStatus === "loading"
+      ? "Looking up…"
+      : altitudeStatus === "idle"
+      ? "Enter a postcode."
+      : "No dataset value – enter the site altitude.";
+
+  const seaText =
+    autoDistance !== null
+      ? `${autoDistance} km from the ${locationSource === "pin" ? "map pin" : "postcode centre"}`
+      : "Set the site location to calculate.";
 
   return (
-    <form className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <section className="lg:col-span-3 rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-medium">Project details</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Project name</label>
+    <Section step={3} title="Site data">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+        <Field
+          label="Basic wind speed vb,map"
+          badge={vbManual ? <SourceBadge kind="manual">Manual</SourceBadge> : statusBadge(windStatus, wind?.exact, { exact: "Dataset", approx: "Nearest district" })}
+          help={windText}
+        >
+          {(props) => (
             <input
-              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
-                errors.projectName ? "border-red-500" : "border-gray-300"
-              }`}
-              placeholder="e.g., Longreach STW – Perimeter"
-              value={form.projectName}
-              onChange={(e) => onChange("projectName", e.target.value)}
-            />
-            {errors.projectName && <p className="mt-1 text-xs text-red-600">{errors.projectName}</p>}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Design requested by (email)</label>
-            <input
-              type="email"
-              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
-                errors.requestEmail ? "border-red-500" : "border-gray-300"
-              }`}
-              placeholder="name@example.com"
-              value={form.requestEmail}
-              onChange={(e) => onChange("requestEmail", e.target.value)}
-            />
-            {errors.requestEmail && <p className="mt-1 text-xs text-red-600">{errors.requestEmail}</p>}
-            <p className="mt-1 text-xs text-gray-500">Shown in the PDF header.</p>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Project postcode</label>
-            <input
-              className={`w-full rounded-xl border p-2.5 uppercase focus:outline-none focus:ring ${
-                errors.postcode ? "border-red-500" : "border-gray-300"
-              }`}
-              placeholder="SW4 6QD"
-              value={form.postcode}
-              onChange={(e) => onChange("postcode", e.target.value.toUpperCase())}
-            />
-            {errors.postcode && <p className="mt-1 text-xs text-red-600">{errors.postcode}</p>}
-            <p className="mt-1 text-xs text-gray-500">Used to derive site wind data.</p>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Month installed</label>
-            <select
-              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
-                errors.installationMonth ? "border-red-500" : "border-gray-300"
-              }`}
-              value={form.installationMonth ?? ""}
-              onChange={(e) =>
-                onChange(
-                  "installationMonth",
-                  e.target.value ? Number(e.target.value) : null,
-                )
-              }
-            >
-              <option value="">Select month…</option>
-              {MONTH_LABELS.map((label, index) => (
-                <option key={label} value={index + 1}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            {errors.installationMonth && (
-              <p className="mt-1 text-xs text-red-600">{errors.installationMonth}</p>
-            )}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Expected duration on site</label>
-            <select
-              className={`w-full rounded-xl border p-2.5 focus:outline-none focus:ring ${
-                errors.durationCategory ? "border-red-500" : "border-gray-300"
-              }`}
-              value={form.durationCategory ?? ""}
-              onChange={(e) =>
-                onChange("durationCategory", e.target.value || null)
-              }
-            >
-              <option value="">Select duration…</option>
-              {DURATION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {errors.durationCategory && (
-              <p className="mt-1 text-xs text-red-600">{errors.durationCategory}</p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="lg:col-span-3 rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-medium">Site conditions</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="lg:col-span-1">
-            <label className="mb-1 block text-sm font-medium">Ground conditions</label>
-            <select
-              className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring"
-              value={form.ground}
-              onChange={(e) => onChange("ground", e.target.value)}
-            >
-              <option>Hardstanding (concrete/asphalt)</option>
-              <option>Firm granular (Type 1/compacted)</option>
-              <option>Soft/grass/soil</option>
-              <option>Unknown – assume worst case</option>
-            </select>
-          </div>
-          <div className="md:col-span-2 lg:col-span-4">
-            <TerrainCategorySelector
-              value={form.terrainCategory}
-              onChange={onTerrainChange}
-              error={errors.terrainCategory}
-            />
-          </div>
-          <div className="lg:col-span-1">
-            <label className="mb-1 block text-sm font-medium">Distance to sea (auto)</label>
-            <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
-              {autoDistance !== null
-                ? `${autoDistance} km`
-                : form.postcode.trim()
-                ? "Locating…"
-                : "Enter a postcode to calculate."}
-            </div>
-            <label className="mt-4 mb-1 block text-sm font-medium">Manual override</label>
-            <input
+              {...props}
               type="number"
               inputMode="decimal"
               step="0.1"
-              className="w-full rounded-xl border p-2.5 focus:outline-none focus:ring"
-              placeholder="km"
-              value={distanceOverride}
-              onChange={(e) => onDistanceOverrideChange(e.target.value)}
+              min="0"
+              className={inputClass(false)}
+              placeholder="Override (m/s)"
+              value={form.vbMapOverride}
+              onChange={(e) => onChange("vbMapOverride", e.target.value)}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              {distanceOverride
-                ? `Using ${distanceOverride} km (manual)`
-                : autoDistance !== null
-                ? `Using ${autoDistance} km (auto)`
-                : "Leave blank to use the auto value."}
-            </p>
-          </div>
-          <div className="md:col-span-2 lg:col-span-2">
-            <label className="mb-1 block text-sm font-medium">Altitude (dataset)</label>
-            <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
-              {renderAltitudeStatus()}
-            </div>
-            {altitudeMatch && (
-              <p className="mt-1 text-xs text-gray-500">
-                Matched dataset entry: {formatPostcode(altitudeMatch)}
-              </p>
-            )}
-            <label className="mt-4 mb-1 block text-sm font-medium">Manual altitude override</label>
+          )}
+        </Field>
+        <Field
+          label="Site altitude"
+          badge={altManual ? <SourceBadge kind="manual">Manual</SourceBadge> : statusBadge(altitudeStatus, altitude?.exact, { exact: "Dataset", approx: "Sector max" })}
+          help={altitudeText}
+        >
+          {(props) => (
             <input
+              {...props}
+              type="number"
+              inputMode="decimal"
+              step="1"
+              className={inputClass(false)}
+              placeholder="Override (m AOD)"
+              value={form.altitudeOverride}
+              onChange={(e) => onChange("altitudeOverride", e.target.value)}
+            />
+          )}
+        </Field>
+        <Field
+          label="Distance to sea"
+          badge={
+            seaManual ? (
+              <SourceBadge kind="manual">Manual</SourceBadge>
+            ) : autoDistance !== null ? (
+              <SourceBadge kind="approx">Auto ±5 km</SourceBadge>
+            ) : null
+          }
+          help={seaText}
+        >
+          {(props) => (
+            <input
+              {...props}
               type="number"
               inputMode="decimal"
               step="0.1"
-              className="w-full rounded-xl border p-2.5 focus:outline-none focus:ring"
-              placeholder="m AOD"
-              value={altitudeOverride}
-              onChange={(e) => onAltitudeOverrideChange(e.target.value)}
+              min="0"
+              className={inputClass(false)}
+              placeholder="Override (km)"
+              value={form.distanceToSeaOverride}
+              onChange={(e) => onChange("distanceToSeaOverride", e.target.value)}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              {usingAltitude
-                ? `Using ${usingAltitude}${altitudeStatus === "error" ? " (manual value)" : ""}`
-                : "Leave blank to use the dataset value or enter a manual altitude."}
-            </p>
-          </div>
-          <div className="lg:col-span-1">
-            <label className="mb-1 block text-sm font-medium">Fence height</label>
-            <select
-              className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring"
-              value={form.height}
-              onChange={(e) => onChange("height", e.target.value)}
-            >
-              <option>2.0 m</option>
-              <option>2.4 m</option>
-              <option>3.0 m</option>
-            </select>
-          </div>
-        </div>
-      </section>
-    </form>
+          )}
+        </Field>
+      </div>
+      <p className="mt-3 text-xs text-gray-500">
+        Leave the boxes blank to use the looked-up values. The auto distance to sea is approximate; within 2 km of the
+        coast, measure it and enter it.
+      </p>
+    </Section>
   );
 };
 
-export default FenceInputs;
+export const ExposureSection = ({ form, onChange }) => (
+  <Section step={4} title="Exposure">
+    <div className="space-y-5">
+      <TerrainCategorySelector value={form.terrain} onChange={(value) => onChange("terrain", value)} />
+      {form.terrain === "town" && (
+        <Field
+          label="Distance inside town"
+          help="Distance from the upwind edge of the town to the site. No town reduction is taken within 1 km."
+          className="max-w-xs"
+        >
+          {(props) => (
+            <input
+              {...props}
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              min="0"
+              className={inputClass(false)}
+              placeholder="km"
+              value={form.distanceIntoTown}
+              onChange={(e) => onChange("distanceIntoTown", e.target.value)}
+            />
+          )}
+        </Field>
+      )}
+
+      <div className="rounded-xl border border-gray-200 p-4">
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-5 w-5 rounded border-gray-300"
+            checked={form.orographySignificant}
+            onChange={(e) => onChange("orographySignificant", e.target.checked)}
+          />
+          <span>
+            <span className="font-medium">Site is on or near a hill, ridge, cliff or escarpment</span>
+            <span className="block text-xs text-gray-600">
+              Orography is significant where the upwind slope is steeper than 1 in 20 (EN 1991-1-4 4.3.3).
+            </span>
+          </span>
+        </label>
+        {form.orographySignificant && (
+          <Field
+            label="Orography factor c_o"
+            help="From EN 1991-1-4 Annex A.3. Applied as c_o² on qp."
+            className="mt-3 max-w-xs"
+          >
+            {(props) => (
+              <input
+                {...props}
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="1"
+                className={inputClass(false)}
+                placeholder="e.g., 1.15"
+                value={form.co}
+                onChange={(e) => onChange("co", e.target.value)}
+              />
+            )}
+          </Field>
+        )}
+      </div>
+
+      <details className="rounded-xl border border-gray-200 p-4">
+        <summary className="cursor-pointer text-sm font-medium">Engineering settings</summary>
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field
+            label="Exposure factor override ce·ce,T"
+            help="Optional. Value read from UK NA Figures NA.7 and NA.8; replaces the built-in approximation."
+          >
+            {(props) => (
+              <input
+                {...props}
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                className={inputClass(false)}
+                placeholder="e.g., 1.85"
+                value={form.ceOverride}
+                onChange={(e) => onChange("ceOverride", e.target.value)}
+              />
+            )}
+          </Field>
+          <label className="flex items-start gap-3 text-sm md:mt-6">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-5 w-5 rounded border-gray-300"
+              checked={form.combineSeasonAndProb}
+              onChange={(e) => onChange("combineSeasonAndProb", e.target.checked)}
+            />
+            <span>
+              <span className="font-medium">Combine c_season with c_prob</span>
+              <span className="block text-xs text-gray-600">
+                Untick to apply c_prob only. The 20 m/s execution minimum applies either way.
+              </span>
+            </span>
+          </label>
+        </div>
+      </details>
+    </div>
+  </Section>
+);
+
+export const ProgrammeSection = ({ form, errorFor, onChange, onBlur }) => (
+  <Section step={5} title="Programme">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Field label="Month installed" error={errorFor("installationMonth")}>
+        {(props) => (
+          <select
+            {...props}
+            className={inputClass(errorFor("installationMonth"))}
+            value={form.installationMonth ?? ""}
+            onChange={(e) => onChange("installationMonth", e.target.value ? Number(e.target.value) : null)}
+            onBlur={() => onBlur("installationMonth")}
+          >
+            <option value="">Select month…</option>
+            {MONTH_LABELS.map((label, index) => (
+              <option key={label} value={index + 1}>
+                {label}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+      <Field
+        label="Expected duration on site"
+        error={errorFor("durationCategory")}
+        help="Counted from the start of the installation month. If the fence goes up mid-month, choose the next longer duration."
+      >
+        {(props) => (
+          <select
+            {...props}
+            className={inputClass(errorFor("durationCategory"))}
+            value={form.durationCategory ?? ""}
+            onChange={(e) => onChange("durationCategory", e.target.value || null)}
+            onBlur={() => onBlur("durationCategory")}
+          >
+            <option value="">Select duration…</option>
+            {DURATION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+    </div>
+  </Section>
+);
+
+export const FenceSection = ({ form, onChange }) => (
+  <Section step={6} title="Fence">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Field label="Fence height">
+        {(props) => (
+          <select
+            {...props}
+            className={inputClass(false)}
+            value={form.height}
+            onChange={(e) => onChange("height", Number(e.target.value))}
+          >
+            {HEIGHT_OPTIONS.map((h) => (
+              <option key={h} value={h}>
+                {h.toFixed(1)} m
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+      <Field label="Ground conditions" help="Recorded on the design brief for the fence designer.">
+        {(props) => (
+          <select
+            {...props}
+            className={inputClass(false)}
+            value={form.ground}
+            onChange={(e) => onChange("ground", e.target.value)}
+          >
+            {GROUND_OPTIONS.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        )}
+      </Field>
+    </div>
+  </Section>
+);
