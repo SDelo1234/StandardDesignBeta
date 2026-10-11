@@ -4,12 +4,13 @@ const Login = ({ pin, onChange, onSubmit, error }) => (
   <form onSubmit={onSubmit} className="w-full rounded-2xl bg-white p-6 shadow-sm">
     <h1 className="mb-2 text-xl font-semibold">Browne access</h1>
     <p className="mb-4 text-sm text-gray-600">Enter your PIN to continue.</p>
-    <label className="mb-1 block text-sm font-medium">PIN</label>
+    <label htmlFor="login-pin" className="mb-1 block text-sm font-medium">PIN</label>
     <input
+      id="login-pin"
       type="password"
       inputMode="numeric"
-      autoComplete="one-time-code"
-      maxLength={6}
+      autoComplete="current-password"
+      maxLength={8}
       placeholder="••••"
       className={`mb-2 w-full rounded-xl border p-2.5 tracking-widest focus:outline-none focus:ring ${
         error ? "border-red-500" : "border-gray-300"

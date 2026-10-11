@@ -1,3 +1,5 @@
+import { DURATIONS } from "./fenceDesign.js";
+
 export const MONTH_LABELS = [
   "January",
   "February",
@@ -13,17 +15,18 @@ export const MONTH_LABELS = [
   "December",
 ];
 
-export const DURATION_OPTIONS = [
-  { value: "UNDER_3_DAYS", label: "Under 3 days" },
-  { value: "UNDER_1_MONTH", label: "Under 1 month" },
-  { value: "UNDER_2_MONTHS", label: "Under 2 months" },
-  { value: "UNDER_4_MONTHS", label: "Under 4 months" },
-  { value: "UNDER_A_YEAR", label: "Under a year" },
-  { value: "OVER_A_YEAR", label: "Over a year" },
+export const DURATION_OPTIONS = Object.entries(DURATIONS).map(([value, { label }]) => ({
+  value,
+  label,
+}));
+
+export const getDurationLabel = (value) => DURATIONS[value]?.label ?? null;
+
+export const GROUND_OPTIONS = [
+  "Hardstanding (concrete/asphalt)",
+  "Firm granular (Type 1/compacted)",
+  "Soft/grass/soil",
+  "Unknown – assume worst case",
 ];
 
-export const getDurationLabel = (value) => {
-  if (!value) return null;
-  const option = DURATION_OPTIONS.find((item) => item.value === value);
-  return option ? option.label : null;
-};
+export const HEIGHT_OPTIONS = [2.0, 2.4, 3.0];

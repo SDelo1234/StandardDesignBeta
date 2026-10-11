@@ -4,13 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/build-altitude-shards.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/build-altitude-shards.mjs",
     "build": "vite build",
     "preview": "vite preview --port 4173",
-    "check:datasets": "node scripts/check-datasets.mjs",
+    "check:datasets": "node scripts/build-altitude-shards.mjs && node scripts/check-datasets.mjs",
     "test": "node --test"
   },
   "dependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "leaflet": "^1.9.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.1"

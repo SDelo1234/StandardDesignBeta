@@ -1,14 +1,8 @@
 # Data Assets
 
-Place CSV files referenced by the application in this directory. Files here will be deployed with the Vite build output so they are accessible at runtime.
+Files here are deployed with the Vite build.
 
-## Expected datasets
+- `vbpostcode.csv` – fundamental basic wind velocity vb,map (m/s) by postcode district (UK NA Figure NA.1).
+- `alt/<DISTRICT>.json` – altitude (m AOD) by inward code, generated from `data/Postcode_elevation.csv` by `scripts/build-altitude-shards.mjs`. Not committed.
 
-The fence design wizard loads two postcode-indexed datasets at runtime:
-
-- `Postcode_elevation.csv` provides elevation in metres above ordnance datum.
-- `vbpostcode.csv` provides the design wind speed (and optionally wind pressure).
-
-Each file should contain a header row. The application looks for columns containing the words `postcode`, `altitude`/`elevation`, `wind speed`, or `pressure`. Values are matched case-insensitively on the longest available postcode prefix. When both wind speed and pressure are supplied, pressure values are assumed to be in kPa; otherwise they are derived from the supplied wind speed.
-
-Sample files are included for development and may be replaced with project-specific datasets.
+Wind values are matched on the postcode district, falling back to the longest available prefix (flagged in the UI). Altitude uses the exact postcode, or the highest altitude in the same postcode sector (flagged).

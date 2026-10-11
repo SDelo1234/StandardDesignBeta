@@ -1,26 +1,11 @@
 import { extractPostcodeOutward, normalisePostcode } from "./postcode.js";
 
-export const ALTITUDE_URL = "/data/Postcode_elevation.csv";
 export const WIND_URL = "/data/vbpostcode.csv";
+export const ALTITUDE_SHARD_URL = (outward) => `/data/alt/${encodeURIComponent(outward)}.json`;
 
-export const computeFallbackWind = (postcode) => {
-  const cleaned = normalisePostcode(postcode);
-  if (!cleaned) return null;
-  const base = 22;
-  const codeSum = cleaned.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-  const speed = Math.round(base + (codeSum % 11));
-  const pressureRaw = Number((0.0005 * speed * speed).toFixed(3));
-  const pressure_kpa = Math.min(pressureRaw, 0.149);
-  const speed_ms = Math.round(Math.sqrt(pressure_kpa / 0.0005));
-  return {
-    speed_ms,
-    pressure_kpa,
-    vb_map: speed_ms,
-    source: "fallback",
-    match: cleaned,
-    matchKey: cleaned,
-  };
-};
+const RHO_AIR = 1.226;
+const pressureFromSpeed = (speedMs) => (0.5 * RHO_AIR * speedMs * speedMs) / 1000;
+const speedFromPressure = (pressureKpa) => Math.sqrt((pressureKpa * 1000) / (0.5 * RHO_AIR));
 
 const splitCsvLine = (line, delimiter = ",") => {
   const row = [];
@@ -131,26 +116,6 @@ const POSTCODE_TOKENS = [
   "postcodearea",
 ];
 
-const ALTITUDE_TOKENS = [
-  "altitude",
-  "altitudem",
-  "altitudemaod",
-  "altitudeaod",
-  "altitude_m",
-  "altitudemaodm",
-  "altitudepaod",
-  "altitudevalue",
-  "altmaod",
-  "altm",
-  "maod",
-  "aod",
-  "elevation",
-  "elevationm",
-  "groundlevel",
-  "height",
-  "heightm",
-];
-
 const WIND_SPEED_TOKENS = [
   "windspeedms",
   "windspeed",
@@ -194,17 +159,6 @@ const countValidSamples = (rows, index, isValueValid) => {
     }
   }
   return { hits, considered };
-};
-
-const looksLikeAltitude = (value) => {
-  const str = value.toString().trim();
-  const numeric = toNumber(str);
-  if (numeric === null) return false;
-  if (numeric < -200 || numeric > 2500) return false;
-  const units = str.replace(/[-+0-9.,\s]/g, "").toLowerCase();
-  if (!units) return true;
-  const allowedUnits = ["m", "maod", "aod", "maodm", "maodft", "maodmetres", "maodmeters"];
-  return allowedUnits.some((unit) => units.includes(unit));
 };
 
 const looksLikeWindSpeed = (value) => {
@@ -298,46 +252,6 @@ const convertPressure = (value, headerNormalized, headerRaw) => {
   return numeric;
 };
 
-export const buildAltitudeIndex = (text) => {
-  const { headers, rows } = parseCsvFile(text.replace(/^\uFEFF/u, ""));
-  if (headers.length === 0) return new Map();
-  const normalizedHeaders = headers.map(normaliseHeaderLabel);
-  const postcodeIndex = resolveColumnIndex(
-    normalizedHeaders,
-    POSTCODE_TOKENS,
-    0,
-    rows,
-    looksLikePostcode,
-  );
-  const altitudeIndex = resolveColumnIndex(
-    normalizedHeaders,
-    ALTITUDE_TOKENS,
-    null,
-    rows,
-    looksLikeAltitude,
-  );
-  if (altitudeIndex === null || altitudeIndex === undefined) {
-    return new Map();
-  }
-  const index = new Map();
-  rows.forEach((row) => {
-    const postcodeRaw = row[postcodeIndex] ?? "";
-    const altitudeRaw = row[altitudeIndex] ?? "";
-    const postcode = normalisePostcode(postcodeRaw);
-    const altitudeValue = toNumber(altitudeRaw);
-    if (!postcode || altitudeValue === null) return;
-    const existing = index.get(postcode);
-    if (!existing || postcode.length >= existing.key.length) {
-      index.set(postcode, {
-        altitude: altitudeValue,
-        original: postcodeRaw.trim() || postcode,
-        key: postcode,
-      });
-    }
-  });
-  return index;
-};
-
 export const buildWindIndex = (text) => {
   const { headers, rows } = parseCsvFile(text.replace(/^\uFEFF/u, ""));
   if (headers.length === 0) return new Map();
@@ -378,10 +292,10 @@ export const buildWindIndex = (text) => {
     }
     if (speedMs === null && pressureKpa === null) return;
     if (speedMs === null && pressureKpa !== null) {
-      speedMs = Math.sqrt(pressureKpa / 0.0005);
+      speedMs = speedFromPressure(pressureKpa);
     }
     if (pressureKpa === null && speedMs !== null) {
-      pressureKpa = Number((0.0005 * speedMs * speedMs).toFixed(3));
+      pressureKpa = pressureFromSpeed(speedMs);
     }
     if (!Number.isFinite(speedMs) || !Number.isFinite(pressureKpa)) return;
     const existing = index.get(postcode);
@@ -411,70 +325,92 @@ const findBestRecord = (map, postcode) => {
   return null;
 };
 
-export const lookupDatasets = (datasets, postcode) => {
-  const normalized = normalisePostcode(postcode);
-  const altitudeKey = normalized || "";
-  const windKey = extractPostcodeOutward(normalized);
-
-  const altitudeRecord = altitudeKey
-    ? findBestRecord(datasets.altitudeIndex, altitudeKey)
-    : null;
-  const windRecord = windKey ? findBestRecord(datasets.windIndex, windKey) : null;
+/**
+ * vb,map for a postcode. Matches the outward code (district); when the
+ * district is missing, the longest available prefix is used and flagged as
+ * an approximate match.
+ */
+export const lookupWind = (windIndex, postcode) => {
+  const outward = extractPostcodeOutward(normalisePostcode(postcode));
+  if (!outward) return null;
+  const record = findBestRecord(windIndex, outward);
+  if (!record) return null;
   return {
-    altitude: altitudeRecord ? altitudeRecord.altitude : null,
-    altitudeMatch: altitudeRecord ? altitudeRecord.original || altitudeRecord.match : null,
-    wind: windRecord
-      ? {
-          speed_ms: windRecord.speed_ms,
-          pressure_kpa: windRecord.pressure_kpa,
-          vb_map: windRecord.vb_map ?? null,
-          source: "dataset",
-          match: windRecord.original || windRecord.match,
-          matchKey: windRecord.match,
-        }
-      : null,
+    vb_map: record.vb_map ?? record.speed_ms,
+    match: record.original || record.match,
+    matchKey: record.match,
+    exact: record.match === outward,
   };
 };
 
-export const buildDatasetCache = (altitudeText, windText) => ({
-  altitudeIndex: buildAltitudeIndex(altitudeText),
-  windIndex: buildWindIndex(windText),
-});
+let windPromise = null;
+let windCache = null;
 
-let datasetPromise = null;
-let datasetCache = null;
-
-const fetchDataset = async (url) => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to load dataset: ${url}`);
-  }
-  const text = await response.text();
-  return text;
-};
-
-export const ensureDatasets = () => {
-  if (datasetCache) {
-    return Promise.resolve(datasetCache);
-  }
-  if (!datasetPromise) {
-    datasetPromise = Promise.all([fetchDataset(ALTITUDE_URL), fetchDataset(WIND_URL)])
-      .then(([altitudeText, windText]) => {
-        const cache = buildDatasetCache(altitudeText, windText);
-        datasetCache = cache;
-        return cache;
+export const ensureWindIndex = () => {
+  if (windCache) return Promise.resolve(windCache);
+  if (!windPromise) {
+    windPromise = fetch(WIND_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Failed to load dataset: ${WIND_URL}`);
+        return response.text();
+      })
+      .then((text) => {
+        windCache = buildWindIndex(text);
+        return windCache;
       })
       .catch((error) => {
-        datasetPromise = null;
+        windPromise = null;
         throw error;
       });
   }
-  return datasetPromise;
+  return windPromise;
 };
 
-export const getDatasetCacheSync = () => datasetCache;
+export const getWindIndexSync = () => windCache;
 
-export const clearDatasetCache = () => {
-  datasetCache = null;
-  datasetPromise = null;
+/**
+ * Altitude for a full postcode from its district shard ({ INWARD: altitude }).
+ * Exact postcode first; otherwise the highest altitude in the same sector
+ * (e.g. "SW4 6"), which is conservative for c_alt.
+ */
+export const lookupAltitudeInShard = (shard, postcode) => {
+  const normalised = normalisePostcode(postcode);
+  if (!shard || normalised.length < 5) return null;
+  const outward = normalised.slice(0, -3);
+  const inward = normalised.slice(-3);
+  if (Number.isFinite(shard[inward])) {
+    return { altitude: shard[inward], match: `${outward} ${inward}`, exact: true };
+  }
+  const sector = inward[0];
+  const sectorValues = Object.entries(shard)
+    .filter(([key, value]) => key[0] === sector && Number.isFinite(value))
+    .map(([, value]) => value);
+  if (!sectorValues.length) return null;
+  return { altitude: Math.max(...sectorValues), match: `${outward} ${sector} (sector max)`, exact: false };
+};
+
+const shardCache = new Map();
+
+export const fetchAltitude = async (postcode) => {
+  const normalised = normalisePostcode(postcode);
+  if (normalised.length < 5) return null;
+  const outward = normalised.slice(0, -3);
+  if (!shardCache.has(outward)) {
+    shardCache.set(
+      outward,
+      fetch(ALTITUDE_SHARD_URL(outward)).then((response) => {
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error(`Failed to load altitude data for ${outward}`);
+        const type = response.headers.get("content-type") || "";
+        // SPA hosts can answer unknown paths with index.html
+        if (!type.includes("json")) return null;
+        return response.json();
+      }).catch((error) => {
+        shardCache.delete(outward);
+        throw error;
+      }),
+    );
+  }
+  const shard = await shardCache.get(outward);
+  return lookupAltitudeInShard(shard, normalised);
 };

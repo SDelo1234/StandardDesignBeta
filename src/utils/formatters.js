@@ -9,11 +9,6 @@ export const formatPressure = (value) => {
   return `${value.toFixed(3)} kPa`;
 };
 
-export const formatRoughness = (value) => {
-  if (!Number.isFinite(value)) return "–";
-  return value < 0.01 ? `${value.toFixed(3)} m` : `${value.toFixed(2)} m`;
-};
-
 export const formatFactor = (value) => {
   if (!Number.isFinite(value)) return "–";
   return value.toFixed(2);

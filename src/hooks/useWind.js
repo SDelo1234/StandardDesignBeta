@@ -1,90 +1,51 @@
 import { useEffect, useState } from "react";
-import { normalisePostcode } from "../utils/postcode";
-import {
-  computeFallbackWind,
-  ensureDatasets,
-  getDatasetCacheSync,
-  lookupDatasets,
-} from "../utils/datasets";
+import { isValidPostcode, normalisePostcode } from "../utils/postcode";
+import { ensureWindIndex, fetchAltitude, lookupWind } from "../utils/datasets";
 
-const makeBaseState = (status = "idle") => ({
+const emptyState = {
   wind: null,
+  windStatus: "idle",
   altitude: null,
-  status,
-  error: null,
-  sources: { wind: null, altitude: null },
-});
+  altitudeStatus: "idle",
+};
 
+/**
+ * Site data for a postcode: vb,map (by district) and altitude (by postcode).
+ * There is no fallback: when a value is missing the status says so and the
+ * user must enter it manually.
+ */
 const useWind = (postcode) => {
-  const [state, setState] = useState(() =>
-    makeBaseState(getDatasetCacheSync() ? "ready" : "idle"),
-  );
+  const [state, setState] = useState(emptyState);
 
   useEffect(() => {
-    const cache = getDatasetCacheSync();
-    const trimmedInput = (postcode || "").trim();
-
-    if (!trimmedInput) {
-      setState(makeBaseState(cache ? "ready" : "idle"));
-      return;
-    }
-
-    const normalized = normalisePostcode(trimmedInput);
-    if (!normalized) {
-      setState(makeBaseState(cache ? "ready" : "idle"));
-      return;
-    }
-
-    const fallbackWind = computeFallbackWind(normalized);
-    if (!fallbackWind) {
-      setState(makeBaseState(cache ? "ready" : "idle"));
-      return;
-    }
-
-    const applyDatasets = (datasets) => {
-      const result = lookupDatasets(datasets, normalized);
-      const nextWind = result.wind ?? fallbackWind;
-      setState({
-        wind: nextWind,
-        altitude: result.altitude ?? null,
-        status: "ready",
-        error: null,
-        sources: {
-          wind: nextWind.source === "dataset" ? nextWind.match : null,
-          altitude: result.altitudeMatch ?? null,
-        },
-      });
-    };
-
-    if (cache) {
-      applyDatasets(cache);
-      return;
+    const normalised = normalisePostcode(postcode);
+    if (!isValidPostcode(normalised)) {
+      setState(emptyState);
+      return undefined;
     }
 
     let cancelled = false;
+    setState({ wind: null, windStatus: "loading", altitude: null, altitudeStatus: "loading" });
 
-    setState({
-      wind: fallbackWind,
-      altitude: null,
-      status: "loading",
-      error: null,
-      sources: { wind: null, altitude: null },
-    });
-
-    ensureDatasets()
-      .then((datasets) => {
+    ensureWindIndex()
+      .then((index) => {
         if (cancelled) return;
-        applyDatasets(datasets);
+        const wind = lookupWind(index, normalised);
+        setState((prev) => ({ ...prev, wind, windStatus: wind ? "ready" : "missing" }));
       })
-      .catch((error) => {
+      .catch(() => {
         if (cancelled) return;
-        setState({
-          wind: fallbackWind,
-          altitude: null,
-          status: "error",
-          error,
-          sources: { wind: null, altitude: null },
-        });
+        setState((prev) => ({ ...prev, wind: null, windStatus: "error" }));
+      });
+
+    fetchAltitude(normalised)
+      .then((altitude) => {
+        if (cancelled) return;
+        setState((prev) => ({ ...prev, altitude, altitudeStatus: altitude ? "ready" : "missing" }));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setState((prev) => ({ ...prev, altitude: null, altitudeStatus: "error" }));
       });
 
     return () => {
